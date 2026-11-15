@@ -57,8 +57,11 @@ void showQr() {
 
 void setup() {
   Serial.setRxBufferSize(8192);
+  Serial.setTxBufferSize(4096);
   Serial.begin(115200);
-  Serial.setTxTimeoutMs(0);  // never block when no USB host
+  // Must be > 0: in this core a 0 timeout underflows a retry counter and write() hangs forever
+  // once the PC stops reading. 20 ms lets it give up quickly and drop output instead.
+  Serial.setTxTimeoutMs(20);
   prefs.begin("cube", false);
   lcd.init();
   lcd.setBrightness(255);
