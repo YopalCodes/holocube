@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HoloCube Control</title>
+<style>
+  :root { --bg:#f6f6f8; --card:#fff; --fg:#16161a; --mut:#6b6b76; --bd:#e2e2e8; --acc:#6d4aff; --ok:#1a9b55; --err:#d33; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#111114; --card:#1b1b20; --fg:#ececf1; --mut:#9a9aa6; --bd:#2c2c34; --acc:#9b82ff; } }
+  * { box-sizing:border-box }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.45 system-ui,sans-serif }
+  main { max-width:640px; margin:0 auto; padding:16px }
+  h1 { font-size:22px; margin:8px 0 4px } h2 { font-size:15px; margin:0 0 10px }
+  .card { background:var(--card); border:1px solid var(--bd); border-radius:12px; padding:14px; margin:12px 0 }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center }
+  button { background:var(--acc); color:#fff; border:0; border-radius:8px; padding:9px 14px; font:inherit; cursor:pointer }
+  button.ghost { background:transparent; color:var(--fg); border:1px solid var(--bd) }
+  button:disabled { opacity:.45; cursor:default }
+  input, select { font:inherit; color:var(--fg); background:var(--bg); border:1px solid var(--bd); border-radius:8px; padding:8px; width:100% }
+  label { display:block; font-size:13px; color:var(--mut); margin:8px 0 3px }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:0 10px }
+  .apps button { background:var(--bg); color:var(--fg); border:1px solid var(--bd) }
+  .apps button.on { background:var(--acc); color:#fff; border-color:var(--acc) }
+  .mut { color:var(--mut); font-size:13px } code { font-size:13px }
+  #status.ok { color:var(--ok) } #status.err { color:var(--err) }
+  progress { width:100%; height:10px } #preview { max-width:120px; border-radius:8px; display:none }
+  .hide { display:none }
+</style>
+</head>
+<body>
+<main>
+  <h1>HoloCube</h1>
+  <div class="mut">Connect with Bluetooth or USB (Chrome or Edge). Works without Wi-Fi.</div>
+
+  <div class="card">
+    <div class="row">
+      <button id="bBle">Connect Bluetooth</button>
+      <button id="bUsb" class="ghost">Connect USB</button>
+      <span id="status" class="mut">Not connected</span>
+    </div>
+  </div>
+
+  <div id="ui" class="hide">
+    <div class="card">
+      <h2>Apps</h2>
+      <div id="apps" class="row apps"></div>
+      <p class="mut">Roll right or left to switch apps. Bob the cube up and down twice to show this page's QR code.</p>
+      <button class="ghost" id="bQr">Show QR on device</button>
+    </div>
+
+    <div class="card">
+      <h2>GIF</h2>
+      <input type="file" id="gifFile" accept="image/gif,image/png,image/jpeg,image/webp">
+      <div class="row" style="margin-top:10px"><img id="preview" alt="GIF preview"><span id="gifInfo" class="mut"></span></div>
+      <progress id="prog" value="0" max="1" class="hide"></progress>
+      <button id="bGif" disabled style="margin-top:10px">Upload to device</button>
+    </div>
+
+    <div class="card">
+      <h2>Wi-Fi <span id="wifiSt" class="mut"></span></h2>
+      <div class="mut">2.4 GHz only. Device MAC for NC State Nomad: <code id="mac">–</code></div>
+      <div class="grid">
+        <div><label>SSID</label><input id="ssid" autocomplete="off"></div>
+        <div><label>Password</label><input id="pass" type="password"></div>
+      </div>
+      <details><summary class="mut" style="margin-top:8px">WPA2-Enterprise (eduroam), optional</summary>
+        <div class="grid">
+          <div><label>Username</label><input id="euser" autocomplete="off"></div>
+          <div><label>Identity (blank = username)</label><input id="eid" autocomplete="off"></div>
+        </div>
+      </details>
+      <button id="bWifi" style="margin-top:10px">Save Wi-Fi</button>
+    </div>
+
+    <div class="card">
+      <h2>Settings</h2>
+      <div class="grid">
+        <div><label>Countdown title</label><input id="evn"></div>
+        <div><label>Concert time (Eastern)</label><input id="evt" type="datetime-local"></div>
+        <div><label>Weather latitude</label><input id="lat" type="number" step="0.0001"></div>
+        <div><label>Weather longitude</label><input id="lon" type="number" step="0.0001"></div>
+        <div><label>Display orientation</label>
+          <select id="rot">
+            <option value="0">0°</option><option value="1">90°</option><option value="2">180°</option><option value="3">270°</option>
+            <option value="4">0° mirrored</option><option value="5">90° mirrored</option><option value="6">180° mirrored</option><option value="7">270° mirrored</option>
+          </select></div>
+        <div><label>QR code URL</label><input id="url"></div>
+      </div>
+      <button id="bCfg" style="margin-top:10px">Save settings</button>
+    </div>
+  </div>
+</main>
+
+<script type="module">
+import { GIFEncoder, quantize, applyPalette } from 'https://cdn.jsdelivr.net/npm/gifenc@1.0.3/+esm';
+
+const SVC = '6e400001-b5a3-f393-e0a9-e50e24dcca9e', RX = '6e400002-b5a3-f393-e0a9-e50e24dcca9e', TX = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+const SIZE = 240, MAX_BYTES = 1900000;
+const $ = id => document.getElementById(id), enc = new TextEncoder();
+let link = null, state = null, waiter = null, gifBytes = null, rxBuf = '';
+
+function setStatus(t, cls = '') { $('status').textContent = t; $('status').className = cls || 'mut'; }
+
+function onText(t) {
+  rxBuf += t;
+  let i;
+  while ((i = rxBuf.indexOf('\n')) >= 0) {
+    const line = rxBuf.slice(0, i).trim(); rxBuf = rxBuf.slice(i + 1);
+    if (!line.startsWith('{')) { if (line) console.log('[dev]', line); continue; }
+    let m; try { m = JSON.parse(line); } catch { continue; }
+    if (m.type === 'state') render(m);
+    else if (waiter) { const w = waiter; waiter = null; w(m); }
+  }
+}
+
+async function cmd(obj, wait = false) {
+  if (!link) throw new Error('not connected');
+  const p = wait ? new Promise((res, rej) => { waiter = res; setTimeout(() => rej(new Error('timeout')), 8000); }) : null;
+  await link.send(JSON.stringify(obj) + '\n');
+  if (!p) return;
+  const m = await p;
+  if (m.type === 'err') throw new Error(m.msg);
+  return m;
+}
+
+const serialLink = async () => {
+  const port = await navigator.serial.requestPort();
+  await port.open({ baudRate: 115200, bufferSize: 16384 });
+  const writer = port.writable.getWriter();
+  (async () => {
+    const dec = new TextDecoder(), reader = port.readable.getReader();
+    try { for (;;) { const { value, done } = await reader.read(); if (done) break; onText(dec.decode(value, { stream: true })); } }
+    catch {} finally { disconnected(); }
+  })();
+  return { kind: 'USB', chunk: 3072, send: s => writer.write(enc.encode(s)) };
+};
+
+const bleLink = async () => {
+  const dev = await navigator.bluetooth.requestDevice({ filters: [{ services: [SVC] }] });
+  dev.addEventListener('gattserverdisconnected', disconnected);
+  const svc = await (await dev.gatt.connect()).getPrimaryService(SVC);
+  const rx = await svc.getCharacteristic(RX), tx = await svc.getCharacteristic(TX);
+  const dec = new TextDecoder();
+  tx.addEventListener('characteristicvaluechanged', e => onText(dec.decode(e.target.value)));
+  await tx.startNotifications();
+  return { kind: 'Bluetooth', chunk: 1536, send: async s => {
+    const b = enc.encode(s);
+    for (let i = 0; i < b.length; i += 512) await rx.writeValueWithResponse(b.slice(i, i + 512));
+  } };
+};
+
+async function connect(factory) {
+  try {
+    setStatus('Connecting…');
+    link = await factory();
+    setStatus(`Connected via ${link.kind}`, 'ok');
+    $('ui').classList.remove('hide');
+    await cmd({ cmd: 'info' });
+  } catch (e) { link = null; setStatus(e.message, 'err'); }
+}
+function disconnected() { link = null; setStatus('Disconnected', 'err'); }
+
+let formFilled = false;
+function render(s) {
+  state = s;
+  $('apps').innerHTML = '';
+  s.apps.forEach((name, i) => {
+    const b = document.createElement('button');
+    b.textContent = name; b.className = i === s.active ? 'on' : '';
+    b.onclick = () => cmd({ cmd: 'app', i });
+    $('apps').appendChild(b);
+  });
+  $('mac').textContent = s.mac; $('wifiSt').textContent = `· ${s.wifi}`;
+  if (!formFilled) {
+    formFilled = true;
+    $('ssid').value = s.ssid; $('evn').value = s.evn; $('evt').value = s.evt;
+    $('lat').value = s.lat.toFixed(4); $('lon').value = s.lon.toFixed(4); $('rot').value = s.rot;
+    $('url').value = s.url.includes('YOUR-GITHUB-USERNAME') || !s.url ? location.href.split('#')[0] : s.url;
+  }
+  $('gifInfo').textContent ||= s.gif ? `Device has a ${(s.gif / 1024).toFixed(0)} KB GIF` : 'No GIF on device yet';
+}
+
+// ---- GIF: decode any image, crop to 240x240, re-encode; drop frames until under size cap ----
+async function convert(file) {
+  const dec = new ImageDecoder({ data: await file.arrayBuffer(), type: file.type || 'image/gif' });
+  await dec.tracks.ready;
+  const total = dec.tracks.selectedTrack.frameCount;
+  const cv = new OffscreenCanvas(SIZE, SIZE), ctx = cv.getContext('2d', { willReadFrequently: true });
+  const frames = [];
+  for (let i = 0; i < total; i++) {
+    const { image } = await dec.decode({ frameIndex: i });
+    const w = image.displayWidth, h = image.displayHeight, sc = Math.max(SIZE / w, SIZE / h);
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, SIZE, SIZE);
+    ctx.drawImage(image, (SIZE - w * sc) / 2, (SIZE - h * sc) / 2, w * sc, h * sc);
+    frames.push({ data: ctx.getImageData(0, 0, SIZE, SIZE).data, delay: Math.max(20, (image.duration || 100000) / 1000) });
+    image.close();
+  }
+  for (let step = Math.max(1, Math.ceil(frames.length / 90)); ; step++) {
+    const g = GIFEncoder();
+    for (let i = 0; i < frames.length; i += step) {
+      const f = frames[i], pal = quantize(f.data, 256, { format: 'rgb565' });
+      let delay = 0; for (let j = i; j < Math.min(i + step, frames.length); j++) delay += frames[j].delay;
+      g.writeFrame(applyPalette(f.data, pal, 'rgb565'), SIZE, SIZE, { palette: pal, delay });
+    }
+    g.finish();
+    const out = g.bytes();
+    if (out.length <= MAX_BYTES || step >= frames.length) return { out, frames: Math.ceil(frames.length / step) };
+  }
+}
+
+$('gifFile').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  $('bGif').disabled = true; $('gifInfo').textContent = 'Converting…';
+  try {
+    const { out, frames } = await convert(f);
+    gifBytes = out;
+    $('preview').src = URL.createObjectURL(new Blob([out], { type: 'image/gif' })); $('preview').style.display = 'block';
+    $('gifInfo').textContent = `${frames} frames · ${(out.length / 1024).toFixed(0)} KB`;
+    if (out.length > MAX_BYTES) $('gifInfo').textContent += ' (too big)'; else $('bGif').disabled = false;
+  } catch (err) { $('gifInfo').textContent = 'Could not read image: ' + err.message; }
+};
+
+$('bGif').onclick = async () => {
+  const b = gifBytes, prog = $('prog');
+  $('bGif').disabled = true; prog.classList.remove('hide'); prog.max = b.length; prog.value = 0;
+  const t0 = performance.now();
+  try {
+    await cmd({ cmd: 'gif_begin', size: b.length }, true);
+    for (let i = 0; i < b.length; i += link.chunk) {
+      const part = b.subarray(i, i + link.chunk);
+      let s = ''; for (let j = 0; j < part.length; j++) s += String.fromCharCode(part[j]);
+      await cmd({ cmd: 'gif_chunk', d: btoa(s) }, true);
+      prog.value = i + part.length;
+      $('gifInfo').textContent = `Uploading ${(100 * prog.value / b.length).toFixed(0)}% · ${(prog.value / 1024 / ((performance.now() - t0) / 1000)).toFixed(1)} KB/s`;
+    }
+    await cmd({ cmd: 'gif_end' }, true);
+    $('gifInfo').textContent = 'Uploaded ✓';
+    const gi = state?.apps.indexOf('GIF Player'); if (gi >= 0) cmd({ cmd: 'app', i: gi });
+  } catch (e) { $('gifInfo').textContent = 'Upload failed: ' + e.message; }
+  prog.classList.add('hide'); $('bGif').disabled = false;
+};
+
+$('bBle').onclick = () => navigator.bluetooth ? connect(bleLink) : setStatus('Web Bluetooth not supported in this browser', 'err');
+$('bUsb').onclick = () => navigator.serial ? connect(serialLink) : setStatus('Web Serial not supported in this browser', 'err');
+$('bQr').onclick = () => cmd({ cmd: 'qr' });
+$('bWifi').onclick = () => cmd({ cmd: 'wifi', ssid: $('ssid').value, pass: $('pass').value, euser: $('euser').value, eid: $('eid').value })
+  .then(() => setStatus('Wi-Fi saved, connecting…', 'ok'));
+$('bCfg').onclick = () => cmd({ cmd: 'cfg', evn: $('evn').value, evt: $('evt').value, url: $('url').value,
+  lat: parseFloat($('lat').value), lon: parseFloat($('lon').value), rot: parseInt($('rot').value) });
+</script>
+</body>
+</html>

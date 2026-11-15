@@ -1,0 +1,74 @@
+# HoloCube: Beam-Splitter Cube Display
+
+XIAO ESP32-S3 + ST7789VW LCD + MPU6050. Firmware (PlatformIO/Arduino) in `src/`, control page (GitHub Pages) in `docs/`.
+
+## Wiring (edit `src/config.h` if yours differs)
+
+| LCD (ST7789VW) | XIAO pad | GPIO |   | MPU6050 | XIAO pad | GPIO |
+|---|---|---|---|---|---|---|
+| SCL/SCK | D8  | 7 | | SDA | D4 | 5 |
+| SDA/MOSI | D10 | 9 | | SCL | D5 | 6 |
+| DC | D1 | 2 | | VCC | 3V3 | |
+| RES | D2 | 3 | | GND | GND | |
+| BLK | D3 | 4 | | | | |
+| VCC / GND | 3V3 / GND | | | | | |
+
+This LCD has no CS pin, so `LCD_CS` is `-1` and the firmware uses SPI mode 3. D0 is free. If you switch to a module that has CS, wire it to D0 and set `LCD_CS 1`. Colors look inverted? Flip `LCD_INVERT`. For a 240×280 panel, set `LCD_H 280` and `LCD_OFFSET_Y 20`.
+
+## Build & flash
+
+```
+pio run -t upload
+pio device monitor
+```
+On boot the serial log prints `Wi-Fi MAC (register on NC State Nomad): xx:xx:...`. Register that on Nomad, then enter SSID `ncsu` (no password) on the control page. The firmware never changes the factory MAC.
+
+## Control page (GitHub Pages)
+
+1. Push this repo to GitHub, go to **Settings → Pages**, and set the source to the `main` branch and the `/docs` folder.
+2. Open `https://<you>.github.io/<repo>/` in Chrome or Edge (Web Bluetooth and Web Serial need these browsers; on iPhone use the Bluefy app).
+3. Connect over **Bluetooth** (no Wi-Fi needed) or **USB**. The first time you **Save settings**, the page stores its own URL on the device as the QR target.
+
+The page lets you switch apps, upload a GIF, set Wi-Fi (PSK or optional WPA2-Enterprise), the countdown date, the weather location, and the display orientation.
+
+GIFs (and PNG/JPG/WebP images) are cropped to 240×240 and re-encoded **in the browser**. Frames are dropped until the file is under about 1.9 MB, so the board does no scaling.
+
+## Gestures (MPU6050)
+
+| Gesture | Action |
+|---|---|
+| Roll right (>32°, held 120 ms) | Next app |
+| Roll left | Previous app |
+| Two quick up/down bobs while level | Show QR code for the control page (20 s) |
+
+After a switch you must return within 12° of level before the next one can fire, plus a 500 ms cooldown. Tune everything in `src/config.h`. If left and right are swapped, set `IMU_ROLL_SIGN -1`. If roll uses the wrong axis, change `IMU_ROLL_AXIS`. To see live values while tuning, uncomment the debug `printf` in `src/imu.cpp`.
+
+## Beam splitter
+
+The reflection is a mirror image. Pick one of the "mirrored" orientations (4–7) on the control page until text reads correctly through the cube.
+
+## Adding an app
+
+```cpp
+struct MyApp : App {
+  const char* name() const override { return "My App"; }
+  bool draw(LGFX_Sprite& c) override { c.fillScreen(TFT_BLUE); return true; }  // return true = push frame
+};
+static MyApp myApp;
+// add &myApp to APPS[] in src/apps/apps.cpp
+```
+Hooks: `begin()` (boot), `enter()`/`exit()`, `update(now)`, `draw(canvas)` (≤30 fps into a PSRAM framebuffer), `direct()` (draw straight to `lcd`, as the GIF player does). New apps show up on the control page automatically.
+
+## Protocol (USB serial 115200 and BLE Nordic-UART, newline-delimited JSON)
+
+`{"cmd":"info"}` · `{"cmd":"app","i":1}` · `{"cmd":"qr"}` · `{"cmd":"wifi","ssid","pass","euser","eid"}` ·
+`{"cmd":"cfg","lat","lon","rot","url","evn","evt":"2026-12-20T19:00"}` · `gif_begin{size}` → `gif_chunk{d:base64}`… → `gif_end`.
+The device replies with `state` / `ack` / `ok` / `err` objects. Log lines never start with `{`.
+
+## Notes
+
+- Weather: Open-Meteo, which needs no API key. Refreshed every 15 minutes.
+- Time: NTP, in US Eastern time with daylight saving.
+- The TXT concert date is **not hardcoded**. Enter it on the control page; it's stored in NVS.
+- Storage: custom partitions give 3 MB for the app and about 4.9 MB for LittleFS. GIFs play from PSRAM.
+- NFC: not implemented. QR is the handoff method. A PN532 or ST25 on the same I2C bus could be added later.
