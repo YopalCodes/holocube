@@ -68,7 +68,7 @@ void setup() {
   lcd.drawString("HoloCube", lcd.width() / 2, lcd.height() / 2, &fonts::FreeSansBold12pt7b);
 
   if (!LittleFS.begin(true)) Serial.println("LittleFS mount failed");
-  if (!imuBegin()) Serial.println("MPU6050 not found");
+  imuBegin();   // prints its own status and keeps retrying in the background
 
   netBegin();   // prints Wi-Fi MAC for NC State Nomad registration
   linkBegin();

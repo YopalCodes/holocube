@@ -21,36 +21,69 @@ Gesture imuNextGesture() {
   return g;
 }
 
+static uint8_t addr = IMU_ADDR;
+static int failures = 0;
+
+static void wr(uint8_t reg, uint8_t v) {
+  Wire.beginTransmission(addr); Wire.write(reg); Wire.write(v); Wire.endTransmission();
+}
+
+static bool probe(uint8_t a) { Wire.beginTransmission(a); return Wire.endTransmission() == 0; }
+
+// Finds and configures the MPU6050. On failure prints an I2C scan (once per outage).
+static bool connectImu(bool report) {
+  Wire.end();
+  Wire.begin(IMU_SDA, IMU_SCL, 400000);
+  Wire.setTimeOut(20);
+  for (uint8_t a : {(uint8_t)IMU_ADDR, (uint8_t)0x69}) {
+    if (!probe(a)) continue;
+    addr = a;
+    wr(0x6B, 0x01);  // wake, PLL gyro clock
+    wr(0x1A, 0x03);  // DLPF ~44 Hz
+    wr(0x1B, 0x08);  // gyro ±500 dps
+    wr(0x1C, 0x08);  // accel ±4 g
+    Serial.printf("MPU6050 connected at 0x%02X\n", addr);
+    return true;
+  }
+  if (report) {
+    Serial.printf("MPU6050 not found. I2C scan (SDA=GPIO%d, SCL=GPIO%d):", IMU_SDA, IMU_SCL);
+    int n = 0;
+    for (uint8_t a = 1; a < 127; a++) if (probe(a)) { Serial.printf(" 0x%02X", a); n++; }
+    Serial.println(n ? "" : " nothing. Check SDA/SCL wiring and 3V3/GND to the IMU.");
+  }
+  return false;
+}
+
 static void imuTask(void*) {
   TickType_t last = xTaskGetTickCount();
+  bool reported = false;
   for (;;) {
+    if (!ok) {                     // keep retrying once a second, so a reseated wire just works
+      ok = connectImu(!reported);
+      reported = !ok;
+      failures = 0;
+      if (!ok) { vTaskDelay(pdMS_TO_TICKS(1000)); last = xTaskGetTickCount(); continue; }
+    }
     Gesture g = imuPoll(millis());
     if (g != G_NONE) xQueueSend(gestures, &g, 0);
     vTaskDelayUntil(&last, pdMS_TO_TICKS(10));
   }
 }
 
-static void wr(uint8_t reg, uint8_t v) {
-  Wire.beginTransmission(IMU_ADDR); Wire.write(reg); Wire.write(v); Wire.endTransmission();
-}
-
 bool imuBegin() {
-  Wire.begin(IMU_SDA, IMU_SCL, 400000);
-  Wire.beginTransmission(IMU_ADDR);
-  if (Wire.endTransmission() != 0) return false;
-  wr(0x6B, 0x01);  // wake, PLL gyro clock
-  wr(0x1A, 0x03);  // DLPF ~44 Hz
-  wr(0x1B, 0x08);  // gyro ±500 dps
-  wr(0x1C, 0x08);  // accel ±4 g
-  ok = true;
   gestures = xQueueCreate(4, sizeof(Gesture));
+  ok = connectImu(true);
   xTaskCreatePinnedToCore(imuTask, "imu", 4096, nullptr, 3, nullptr, 0);
-  return true;
+  return ok;
 }
 
 static Gesture imuPoll(uint32_t now) {
-  Wire.beginTransmission(IMU_ADDR); Wire.write(0x3B);
-  if (Wire.endTransmission(false) != 0 || Wire.requestFrom(IMU_ADDR, 14) != 14) return G_NONE;
+  Wire.beginTransmission(addr); Wire.write(0x3B);
+  if (Wire.endTransmission(false) != 0 || Wire.requestFrom(addr, (uint8_t)14) != 14) {
+    if (++failures >= 20) { ok = false; Serial.println("MPU6050 lost, reconnecting..."); }
+    return G_NONE;
+  }
+  failures = 0;
   int16_t raw[7];
   for (int i = 0; i < 7; i++) raw[i] = (Wire.read() << 8) | Wire.read();
   float a[3] = {raw[0] / 8192.0f, raw[1] / 8192.0f, raw[2] / 8192.0f};
