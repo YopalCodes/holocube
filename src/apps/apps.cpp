@@ -127,7 +127,7 @@ struct GifApp : App {
   uint32_t nextAt = 0;
   const char* name() const override { return "GIF Player"; }
   bool direct() const override { return true; }
-  void begin() override { gif.begin(LITTLE_ENDIAN_PIXELS); }
+  void begin() override { gif.begin(BIG_ENDIAN_PIXELS); }  // LovyanGFX treats uint16_t* pixels as byte-swapped RGB565
   void reload() { stale = true; if (active) { lcd.fillScreen(TFT_BLACK); load(); } }
   void load() {
     stale = false;
