@@ -29,6 +29,12 @@
             box-shadow:0 0 0 6px #222, 0 8px 24px rgba(0,0,0,.35) }
   .screen canvas, .screen img { position:absolute; inset:0; width:240px; height:240px; image-rendering:pixelated }
   .screen img { display:none }
+  .storage { margin-bottom:12px; font-size:14px }
+  .meter { display:flex; height:10px; border-radius:5px; background:var(--bd); overflow:hidden; margin:6px 0 4px }
+  .meter div { height:100%; width:0; transition:width .2s }
+  #stGif { background:var(--acc) } #stOther { background:var(--mut) } #stNew { background:var(--ok) }
+  #stNew.over { background:var(--err) }
+  #stWarn.err { color:var(--err) }
 </style>
 </head>
 <body>
@@ -60,10 +66,20 @@
 
     <div class="card">
       <h2>GIF</h2>
+      <div class="storage">
+        <div class="row" style="justify-content:space-between"><span>Storage</span><span id="stText" class="mut"></span></div>
+        <div class="meter" role="meter" aria-label="Device storage used"><div id="stGif" title="Current GIF"></div><div id="stOther" title="Other files"></div><div id="stNew" title="New GIF"></div></div>
+        <div id="stWarn" class="mut"></div>
+      </div>
       <input type="file" id="gifFile" accept="image/gif,image/png,image/jpeg,image/webp">
       <div class="row" style="margin-top:10px"><img id="preview" alt="GIF preview"><span id="gifInfo" class="mut"></span></div>
       <progress id="prog" value="0" max="1" class="hide"></progress>
-      <button id="bGif" disabled style="margin-top:10px">Upload to device</button>
+      <div class="row" style="margin-top:10px">
+        <button id="bGif" disabled>Upload to device</button>
+        <button id="bGifDel" class="ghost">Delete GIF from device</button>
+        <span id="delConfirm" class="hide row"><span class="mut">Delete the GIF on the device?</span>
+          <button id="bDelYes">Delete</button><button id="bDelNo" class="ghost">Cancel</button></span>
+      </div>
     </div>
 
     <div class="card">
@@ -191,8 +207,43 @@ function render(s) {
     $('url').value = s.url.includes('YOUR-GITHUB-USERNAME') || !s.url ? location.href.split('#')[0] : s.url;
   }
   $('gifInfo').textContent ||= s.gif ? `Device has a ${(s.gif / 1024).toFixed(0)} KB GIF` : 'No GIF on device yet';
+  $('bGifDel').disabled = !s.gif;
+  renderStorage();
   drawPreview();
 }
+
+// ---- Storage meter + upload safety check (the device enforces the same rule) ----
+const kb = n => n >= 1048576 ? (n / 1048576).toFixed(2) + ' MB' : Math.round(n / 1024) + ' KB';
+function uploadCheck(size) {
+  if (!state || state.fsTotal == null) return { ok: true };
+  if (size > state.gifMax) return { ok: false, msg: `This GIF is ${kb(size)}. The limit is ${kb(state.gifMax)}.` };
+  const avail = state.fsFree + state.gif - state.fsMargin;   // the old GIF gets replaced
+  if (size > avail) return { ok: false, msg: `Not enough storage: this GIF needs ${kb(size)}, but only ${kb(Math.max(0, avail))} is available. Delete the current GIF or pick a shorter one.` };
+  return { ok: true, msg: `${kb(avail - size)} will be left after upload.` };
+}
+function renderStorage() {
+  const s = state; if (!s || s.fsTotal == null) return;
+  const pct = n => Math.max(0, Math.min(100, 100 * n / s.fsTotal)) + '%';
+  const other = Math.max(0, s.fsUsed - s.gif);
+  $('stGif').style.width = pct(gifBytes ? 0 : s.gif);
+  $('stOther').style.width = pct(other);
+  $('stNew').style.width = pct(gifBytes ? gifBytes.length : 0);
+  $('stText').textContent = `${kb(s.fsUsed)} used of ${kb(s.fsTotal)} · ${kb(s.fsFree)} free`;
+  const c = gifBytes ? uploadCheck(gifBytes.length) : null;
+  $('stNew').classList.toggle('over', !!c && !c.ok);
+  $('stWarn').textContent = c ? c.msg : (s.fsUsed / s.fsTotal > 0.8 ? 'Storage is over 80% full.' : '');
+  $('stWarn').className = c && !c.ok ? 'err' : 'mut';
+  if (gifBytes && !$('prog').classList.contains('hide')) return;   // mid-upload: leave the button alone
+  $('bGif').disabled = !gifBytes || !c.ok;
+}
+
+$('bGifDel').onclick = () => { $('bGifDel').classList.add('hide'); $('delConfirm').classList.remove('hide'); };
+$('bDelNo').onclick = () => { $('delConfirm').classList.add('hide'); $('bGifDel').classList.remove('hide'); };
+$('bDelYes').onclick = async () => {
+  $('delConfirm').classList.add('hide'); $('bGifDel').classList.remove('hide');
+  try { await cmd({ cmd: 'gif_delete' }, true); $('gifInfo').textContent = 'GIF deleted from device'; }
+  catch (e) { $('gifInfo').textContent = 'Delete failed: ' + e.message; }
+};
 
 // ---- GIF: decode any image, crop to 240x240, re-encode; drop frames until under size cap ----
 async function convert(file) {
@@ -230,7 +281,7 @@ $('gifFile').onchange = async e => {
     gifBytes = out;
     $('preview').src = URL.createObjectURL(new Blob([out], { type: 'image/gif' })); $('preview').style.display = 'block';
     $('gifInfo').textContent = `${frames} frames · ${(out.length / 1024).toFixed(0)} KB`;
-    if (out.length > MAX_BYTES) $('gifInfo').textContent += ' (too big)'; else $('bGif').disabled = false;
+    renderStorage();
   } catch (err) { $('gifInfo').textContent = 'Could not read image: ' + err.message; }
 };
 
@@ -239,7 +290,9 @@ $('bGif').onclick = async () => {
   $('bGif').disabled = true; prog.classList.remove('hide'); prog.max = b.length; prog.value = 0;
   const t0 = performance.now();
   try {
-    await cmd({ cmd: 'gif_begin', size: b.length }, true);
+    const chk = uploadCheck(b.length);
+    if (!chk.ok) throw new Error(chk.msg);
+    await cmd({ cmd: 'gif_begin', size: b.length }, true);   // the device re-checks and may refuse
     for (let i = 0; i < b.length; i += link.chunk) {
       const part = b.subarray(i, i + link.chunk);
       let s = ''; for (let j = 0; j < part.length; j++) s += String.fromCharCode(part[j]);
@@ -250,9 +303,10 @@ $('bGif').onclick = async () => {
     await cmd({ cmd: 'gif_end' }, true);
     $('gifInfo').textContent = 'Uploaded ✓';
     cacheGif(b);
+    gifBytes = null;
     const gi = state?.apps.indexOf('GIF Player'); if (gi >= 0) cmd({ cmd: 'app', i: gi });
   } catch (e) { $('gifInfo').textContent = 'Upload failed: ' + e.message; }
-  prog.classList.add('hide'); $('bGif').disabled = false;
+  prog.classList.add('hide'); renderStorage();
 };
 
 // ---- Screen preview: re-draws the active app the way the firmware does (src/apps/apps.cpp) ----

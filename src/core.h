@@ -82,3 +82,4 @@ void imuSetStream(bool on);      // raw stream for calibration; auto-expires 3 s
 
 // ---------- GIF ----------
 void gifReload();
+void gifUnload();   // stop playback and free the PSRAM copy (before deleting the file)

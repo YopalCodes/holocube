@@ -66,7 +66,11 @@ static String stateJson() {
     d["wText"] = weatherText(weather.code);
   }
   d["gif"] = LittleFS.exists(GIF_PATH) ? (int)LittleFS.open(GIF_PATH).size() : 0;
+  d["fsTotal"] = (int)LittleFS.totalBytes();
+  d["fsUsed"] = (int)LittleFS.usedBytes();
   d["fsFree"] = (int)(LittleFS.totalBytes() - LittleFS.usedBytes());
+  d["fsMargin"] = FS_RESERVE_BYTES;
+  d["gifMax"] = GIF_MAX_BYTES;
   String s; serializeJson(d, s);
   return s;
 }
@@ -113,8 +117,25 @@ static void handle(Port p, String& line) {
 
   if (cmd == "gif_begin") {
     uploadSize = d["size"] | 0;
-    if (!uploadSize || uploadSize > GIF_MAX_BYTES) { send(p, reply("err", "size")); return; }
-    if (upload) upload.close();
+    char msg[96];
+    if (!uploadSize || uploadSize > GIF_MAX_BYTES) {
+      snprintf(msg, sizeof msg, "GIF is %u KB; the limit is %u KB", (unsigned)(uploadSize / 1024), GIF_MAX_BYTES / 1024);
+      send(p, reply("err", msg));
+      return;
+    }
+    if (upload) { upload.close(); LittleFS.remove("/gif.tmp"); }
+    size_t freeB = LittleFS.totalBytes() - LittleFS.usedBytes();
+    size_t oldGif = LittleFS.exists(GIF_PATH) ? LittleFS.open(GIF_PATH).size() : 0;
+    if (uploadSize + FS_RESERVE_BYTES > freeB + oldGif) {   // won't fit even after replacing the old GIF
+      snprintf(msg, sizeof msg, "Not enough storage: needs %u KB, %u KB available",
+               (unsigned)((uploadSize + FS_RESERVE_BYTES) / 1024), (unsigned)((freeB + oldGif) / 1024));
+      send(p, reply("err", msg));
+      return;
+    }
+    if (uploadSize + FS_RESERVE_BYTES > freeB) {   // fits only once the old GIF is gone
+      gifUnload();
+      LittleFS.remove(GIF_PATH);
+    }
     upload = LittleFS.open("/gif.tmp", "w");
     uploadGot = 0;
     send(p, upload ? reply("ack", "begin", 0) : reply("err", "fs"));
@@ -130,6 +151,11 @@ static void handle(Port p, String& line) {
       return;
     }
     uploadGot += outLen;
+    if (uploadGot > uploadSize) {   // sender lied about the size; stop before it fills the disk
+      upload.close(); LittleFS.remove("/gif.tmp");
+      send(p, reply("err", "upload larger than announced"));
+      return;
+    }
     send(p, reply("ack", "chunk", uploadGot));
     return;
   }
@@ -141,6 +167,14 @@ static void handle(Port p, String& line) {
     LittleFS.rename("/gif.tmp", GIF_PATH);
     gifReload();
     send(p, reply("ok", "gif saved", uploadGot));
+    stateDirty = true;
+    return;
+  }
+  if (cmd == "gif_delete") {
+    gifUnload();
+    LittleFS.remove(GIF_PATH);
+    gifReload();
+    send(p, reply("ok", "gif deleted"));
     stateDirty = true;
     return;
   }

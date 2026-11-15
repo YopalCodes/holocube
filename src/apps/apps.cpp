@@ -128,7 +128,7 @@ struct GifApp : App {
   const char* name() const override { return "GIF Player"; }
   bool direct() const override { return true; }
   void begin() override { gif.begin(BIG_ENDIAN_PIXELS); }  // LovyanGFX treats uint16_t* pixels as byte-swapped RGB565
-  void reload() { stale = true; if (active) { lcd.fillScreen(TFT_BLACK); load(); } }
+  void reload() { stale = true; if (active) { lcd.fillScreen(TFT_BLACK); load(); forceRedraw(); } }
   void load() {
     stale = false;
     if (opened) { gif.close(); opened = false; }
@@ -177,6 +177,11 @@ static GifApp gifApp;
 static CountdownApp countdownApp;
 
 void gifReload() { gifApp.reload(); }
+void gifUnload() {
+  if (gifApp.opened) { gif.close(); gifApp.opened = false; }
+  free(gifApp.buf); gifApp.buf = nullptr; gifApp.len = 0;
+  gifApp.stale = true;
+}
 
 App* const APPS[] = {&clockApp, &gifApp, &countdownApp};
 const int APP_COUNT = sizeof(APPS) / sizeof(APPS[0]);

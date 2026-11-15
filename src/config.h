@@ -44,4 +44,5 @@
 #define TZ_EASTERN       "EST5EDT,M3.2.0,M11.1.0"
 #define GIF_PATH         "/gif.gif"
 #define GIF_MAX_BYTES    (2 * 1024 * 1024)
+#define FS_RESERVE_BYTES (64 * 1024)   // always keep this much flash free; uploads that would eat into it are refused
 #define BLE_NAME         "HoloCube"
