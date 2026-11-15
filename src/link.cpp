@@ -86,6 +86,7 @@ static void handle(Port p, String& line) {
   if (cmd == "info") { send(p, stateJson()); return; }
   if (cmd == "app") { switchApp(d["i"] | 0); send(p, stateJson()); return; }
   if (cmd == "qr") { showQr(); send(p, reply("ok", "qr")); return; }
+  if (cmd == "i2c_diag") { extern void imuDiag(); imuDiag(); return; }
   if (cmd == "imu_stream") { imuSetStream(d["on"] | false); return; }   // no reply: keeps the stream clean
 
   if (cmd == "wifi") {

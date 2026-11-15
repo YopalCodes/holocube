@@ -54,10 +54,33 @@ static bool connectImu(bool report) {
   return false;
 }
 
+static volatile bool diagReq = false;
+void imuDiag() { diagReq = true; }
+
+// Wiring diagnostic: line levels with pull-ups, then look for the IMU on every free pin pair.
+static void runDiag() {
+  Wire.end();
+  const int pins[] = {1, 5, 6, 8, 43, 44};   // XIAO pins not used by the LCD
+  Serial.print("DIAG line levels with pull-up (1 = idle high, 0 = stuck low/shorted):");
+  for (int p : pins) { pinMode(p, INPUT_PULLUP); delay(2); Serial.printf(" GPIO%d=%d", p, digitalRead(p)); }
+  Serial.println();
+  int hits = 0;
+  for (int sda : pins) for (int scl : pins) {
+    if (sda == scl) continue;
+    Wire.begin(sda, scl, 100000);
+    Wire.setTimeOut(10);
+    for (uint8_t a = 1; a < 127; a++)
+      if (probe(a)) { Serial.printf("DIAG found 0x%02X with SDA=GPIO%d SCL=GPIO%d\n", a, sda, scl); hits++; }
+    Wire.end();
+  }
+  Serial.println(hits ? "DIAG done" : "DIAG done: no I2C device on any pin pair");
+}
+
 static void imuTask(void*) {
   TickType_t last = xTaskGetTickCount();
   bool reported = false;
   for (;;) {
+    if (diagReq) { diagReq = false; runDiag(); ok = false; reported = true; }
     if (!ok) {                     // keep retrying once a second, so a reseated wire just works
       ok = connectImu(!reported);
       reported = !ok;
