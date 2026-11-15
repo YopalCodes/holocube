@@ -59,6 +59,12 @@ static String stateJson() {
   d["lon"] = prefs.getFloat("lon", DEFAULT_LON);
   d["evn"] = prefs.getString("evn", "TXT");
   d["evt"] = prefs.getString("evt", "");
+  d["timeOk"] = timeValid();
+  if (weather.ok) {
+    d["wT"] = weather.tempF;
+    d["wWind"] = weather.windMph;
+    d["wText"] = weatherText(weather.code);
+  }
   d["gif"] = LittleFS.exists(GIF_PATH) ? (int)LittleFS.open(GIF_PATH).size() : 0;
   d["fsFree"] = (int)(LittleFS.totalBytes() - LittleFS.usedBytes());
   String s; serializeJson(d, s);
@@ -80,7 +86,7 @@ static void handle(Port p, String& line) {
   if (cmd == "info") { send(p, stateJson()); return; }
   if (cmd == "app") { switchApp(d["i"] | 0); send(p, stateJson()); return; }
   if (cmd == "qr") { showQr(); send(p, reply("ok", "qr")); return; }
-  if (cmd == "imu_stream") { extern bool imuStream; imuStream = d["on"] | false; send(p, reply("ok", "imu_stream")); return; }
+  if (cmd == "imu_stream") { imuSetStream(d["on"] | false); return; }   // no reply: keeps the stream clean
 
   if (cmd == "wifi") {
     prefs.putString("ssid", d["ssid"] | "");

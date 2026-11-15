@@ -59,9 +59,14 @@ class Imu:
 
     def record(self, seconds, live=None):
         """Collect samples for `seconds`, calling live(sample) about 25x/s for a live display."""
+        self._send('{"cmd":"imu_stream","on":true}')
+        time.sleep(0.05)
         self.ser.reset_input_buffer()
-        out, end, last_draw = [], time.time() + seconds, 0
+        out, end, last_draw, last_ping = [], time.time() + seconds, 0, time.time()
         while time.time() < end:
+            if time.time() - last_ping > 1:  # firmware stops streaming 3 s after the last ping
+                last_ping = time.time()
+                self._send('{"cmd":"imu_stream","on":true}')
             s = self.read()
             if not s:
                 continue

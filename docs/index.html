@@ -25,6 +25,10 @@
   #status.ok { color:var(--ok) } #status.err { color:var(--err) }
   progress { width:100%; height:10px } #preview { max-width:120px; border-radius:8px; display:none }
   .hide { display:none }
+  .screen { position:relative; width:240px; height:240px; margin:0 auto; background:#000; border-radius:6px; overflow:hidden;
+            box-shadow:0 0 0 6px #222, 0 8px 24px rgba(0,0,0,.35) }
+  .screen canvas, .screen img { position:absolute; inset:0; width:240px; height:240px; image-rendering:pixelated }
+  .screen img { display:none }
 </style>
 </head>
 <body>
@@ -41,6 +45,12 @@
   </div>
 
   <div id="ui" class="hide">
+    <div class="card">
+      <h2>Screen preview <span class="mut">240 × 240</span></h2>
+      <div class="screen"><canvas id="scr" width="240" height="240"></canvas><img id="scrGif" alt="GIF playing on the device"></div>
+      <div id="scrNote" class="mut" style="text-align:center;margin-top:8px"></div>
+    </div>
+
     <div class="card">
       <h2>Apps</h2>
       <div id="apps" class="row apps"></div>
@@ -115,7 +125,10 @@ function onText(t) {
 
 async function cmd(obj, wait = false) {
   if (!link) throw new Error('not connected');
-  const p = wait ? new Promise((res, rej) => { waiter = res; setTimeout(() => rej(new Error('timeout')), 8000); }) : null;
+  const p = wait ? new Promise((res, rej) => {
+    waiter = res;
+    setTimeout(() => { if (waiter === res) waiter = null; rej(new Error('timeout')); }, 8000);
+  }) : null;
   await link.send(JSON.stringify(obj) + '\n');
   if (!p) return;
   const m = await p;
@@ -178,6 +191,7 @@ function render(s) {
     $('url').value = s.url.includes('YOUR-GITHUB-USERNAME') || !s.url ? location.href.split('#')[0] : s.url;
   }
   $('gifInfo').textContent ||= s.gif ? `Device has a ${(s.gif / 1024).toFixed(0)} KB GIF` : 'No GIF on device yet';
+  drawPreview();
 }
 
 // ---- GIF: decode any image, crop to 240x240, re-encode; drop frames until under size cap ----
@@ -235,12 +249,88 @@ $('bGif').onclick = async () => {
     }
     await cmd({ cmd: 'gif_end' }, true);
     $('gifInfo').textContent = 'Uploaded ✓';
+    cacheGif(b);
     const gi = state?.apps.indexOf('GIF Player'); if (gi >= 0) cmd({ cmd: 'app', i: gi });
   } catch (e) { $('gifInfo').textContent = 'Upload failed: ' + e.message; }
   prog.classList.add('hide'); $('bGif').disabled = false;
 };
 
-$('bBle').onclick = () => navigator.bluetooth ? connect(bleLink) : setStatus('Web Bluetooth not supported in this browser', 'err');
+// ---- Screen preview: re-draws the active app the way the firmware does (src/apps/apps.cpp) ----
+const scr = $('scr').getContext('2d');
+const C = { white: '#fff', cyan: '#0ff', lgrey: '#d3d3d3', dgrey: '#7b7d7b', orange: '#ffa500', purple: '#9c9aff', magenta: '#f0f' };
+const F = { big: '700 50px ui-monospace, Consolas, monospace', f4: '600 21px system-ui, sans-serif', f2: '13px system-ui, sans-serif',
+            b12: '700 22px Arial, sans-serif', b18: '700 30px Arial, sans-serif' };
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const etFmt = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hourCycle: 'h23', year: 'numeric', month: '2-digit',
+  day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', weekday: 'short' });
+const et = (d = new Date()) => Object.fromEntries(etFmt.formatToParts(d).map(x => [x.type, x.value]));
+function etToEpoch(s) {  // "YYYY-MM-DDTHH:MM" in Eastern -> ms
+  const [y, mo, d, h, mi] = s.match(/\d+/g).map(Number), guess = Date.UTC(y, mo - 1, d, h, mi), p = et(new Date(guess));
+  return guess - (Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second) - guess);
+}
+function txt(s, y, font, col) {
+  scr.font = font; scr.fillStyle = col; scr.textAlign = 'center'; scr.textBaseline = 'middle'; scr.fillText(s, 120, y);
+}
+let cachedGif = null;
+function idb(mode, fn) {
+  return new Promise((res, rej) => {
+    try {
+      const r = indexedDB.open('holocube', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('kv');
+      r.onsuccess = () => { const q = fn(r.result.transaction('kv', mode).objectStore('kv')); q.onsuccess = () => res(q.result); q.onerror = rej; };
+      r.onerror = rej;
+    } catch (e) { rej(e); }
+  });
+}
+function useGif(bytes) { cachedGif = { size: bytes.length, url: URL.createObjectURL(new Blob([bytes], { type: 'image/gif' })) }; $('scrGif').src = cachedGif.url; }
+function cacheGif(bytes) { useGif(bytes); idb('readwrite', s => s.put(bytes, 'gif')).catch(() => {}); }
+idb('readonly', s => s.get('gif')).then(b => b && useGif(b)).catch(() => {});
+
+function drawPreview() {
+  if (!state) return;
+  const app = state.apps[state.active] || '';
+  const showGif = app === 'GIF Player' && cachedGif && cachedGif.size === state.gif;
+  $('scrGif').style.display = showGif ? 'block' : 'none';
+  $('scrNote').textContent = `Showing ${app}. Fonts are approximate.`;
+  scr.fillStyle = '#000'; scr.fillRect(0, 0, 240, 240);
+  if (app === 'Clock & Weather') {
+    if (!state.timeOk) {
+      txt('--:--', 90, F.big, C.dgrey); txt(state.wifi, 150, F.f2, C.lgrey); txt('Set Wi-Fi on control page', 170, F.f2, C.dgrey);
+      return;
+    }
+    const p = et(), h = +p.hour;
+    txt(`${h % 12 || 12}:${p.minute}`, 80, F.big, C.white);
+    txt(`${p.second} ${h < 12 ? 'AM' : 'PM'}`, 124, F.f4, C.cyan);
+    txt(`${p.weekday} ${MON[+p.month - 1]} ${p.day}`, 154, F.f4, C.lgrey);
+    scr.fillStyle = C.dgrey; scr.fillRect(30, 176, 180, 1);
+    if (state.wT != null) {
+      txt(`${Math.round(state.wT)} F`, 198, F.b12, C.orange);
+      txt(`${state.wText}  ${Math.round(state.wWind)} mph`, 222, F.f2, C.lgrey);
+    } else txt('weather...', 200, F.f2, C.dgrey);
+  } else if (app === 'TXT Countdown') {
+    txt(state.evn || 'TXT', 28, F.b12, C.purple);
+    if (!/^\d{4}-\d\d-\d\dT\d\d:\d\d/.test(state.evt || '')) {
+      txt('Set concert date', 120, F.f4, C.lgrey); txt('on the control page', 146, F.f2, C.dgrey); return;
+    }
+    if (!state.timeOk) { txt('Waiting for time sync', 120, F.f2, C.dgrey); return; }
+    const left = Math.floor((etToEpoch(state.evt) - Date.now()) / 1000);
+    if (left <= 0) { txt(left > -6 * 3600 ? 'SHOW TIME!' : 'Update the date', 120, F.b18, C.magenta); return; }
+    const d = Math.floor(left / 86400), pad = n => String(n).padStart(2, '0');
+    txt(String(d), 98, F.big, C.white);
+    txt(d === 1 ? 'day' : 'days', 142, F.f4, C.purple);
+    txt(`${pad(Math.floor(left % 86400 / 3600))}:${pad(Math.floor(left % 3600 / 60))}:${pad(left % 60)}`, 180, F.f4, C.cyan);
+    txt(`${state.evt.slice(0, 10)} ${state.evt.slice(11, 16)} ET`, 222, F.f2, C.dgrey);
+  } else if (app === 'GIF Player') {
+    if (showGif) return;
+    if (state.gif) { txt('GIF on device', 110, F.f4, C.lgrey); txt('Upload it from this browser to preview', 136, F.f2, C.dgrey); }
+    else { txt('No GIF yet', 108, F.f4, C.lgrey); txt('Upload one from the control page', 136, F.f2, C.lgrey); }
+  } else {
+    txt(app, 120, F.f4, C.lgrey);
+  }
+}
+setInterval(drawPreview, 250);
+
+$('bBle').onclick =() => navigator.bluetooth ? connect(bleLink) : setStatus('Web Bluetooth not supported in this browser', 'err');
 $('bUsb').onclick = () => navigator.serial ? connect(serialLink) : setStatus('Web Serial not supported in this browser', 'err');
 $('bQr').onclick = () => cmd({ cmd: 'qr' });
 $('bWifi').onclick = () => cmd({ cmd: 'wifi', ssid: $('ssid').value, pass: $('pass').value, euser: $('euser').value, eid: $('eid').value })

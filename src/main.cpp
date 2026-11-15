@@ -8,7 +8,7 @@ Preferences prefs;
 
 static int cur = 0;
 static uint32_t qrUntil = 0;
-static uint32_t lastImu = 0, lastDraw = 0;
+static uint32_t lastDraw = 0;
 
 int activeApp() { return cur; }
 
@@ -82,14 +82,11 @@ void loop() {
   uint32_t now = millis();
   linkPoll();
 
-  if (now - lastImu >= 10) {
-    lastImu = now;
-    switch (imuPoll(now)) {
-      case G_RIGHT:  switchApp(cur + 1); break;
-      case G_LEFT:   switchApp(cur - 1); break;
-      case G_PICKUP: showQr(); break;
-      default: break;
-    }
+  switch (imuNextGesture()) {   // IMU runs in its own 100 Hz task, independent of drawing
+    case G_RIGHT:  switchApp(cur + 1); break;
+    case G_LEFT:   switchApp(cur - 1); break;
+    case G_PICKUP: showQr(); break;
+    default: break;
   }
 
   if (qrUntil) {

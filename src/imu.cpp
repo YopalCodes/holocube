@@ -9,7 +9,26 @@ static int tiltDir = 0;
 static uint32_t tiltSince = 0, cooldownUntil = 0, lastPeak = 0, firstPeak = 0;
 static int peaks = 0;
 static bool aboveTh = false;
-bool imuStream = false;   // set by {"cmd":"imu_stream"}; prints raw data for tools/calibrate_*.py
+static volatile uint32_t streamUntil = 0;   // raw stream for tools/calibrate_*.py
+static QueueHandle_t gestures;
+static Gesture imuPoll(uint32_t now);
+
+void imuSetStream(bool on) { streamUntil = on ? millis() + 3000 : 0; }
+
+Gesture imuNextGesture() {
+  Gesture g = G_NONE;
+  if (gestures) xQueueReceive(gestures, &g, 0);
+  return g;
+}
+
+static void imuTask(void*) {
+  TickType_t last = xTaskGetTickCount();
+  for (;;) {
+    Gesture g = imuPoll(millis());
+    if (g != G_NONE) xQueueSend(gestures, &g, 0);
+    vTaskDelayUntil(&last, pdMS_TO_TICKS(10));
+  }
+}
 
 static void wr(uint8_t reg, uint8_t v) {
   Wire.beginTransmission(IMU_ADDR); Wire.write(reg); Wire.write(v); Wire.endTransmission();
@@ -24,11 +43,12 @@ bool imuBegin() {
   wr(0x1B, 0x08);  // gyro ±500 dps
   wr(0x1C, 0x08);  // accel ±4 g
   ok = true;
+  gestures = xQueueCreate(4, sizeof(Gesture));
+  xTaskCreatePinnedToCore(imuTask, "imu", 4096, nullptr, 3, nullptr, 0);
   return true;
 }
 
-Gesture imuPoll(uint32_t now) {
-  if (!ok) return G_NONE;
+static Gesture imuPoll(uint32_t now) {
   Wire.beginTransmission(IMU_ADDR); Wire.write(0x3B);
   if (Wire.endTransmission(false) != 0 || Wire.requestFrom(IMU_ADDR, 14) != 14) return G_NONE;
   int16_t raw[7];
@@ -36,7 +56,7 @@ Gesture imuPoll(uint32_t now) {
   float a[3] = {raw[0] / 8192.0f, raw[1] / 8192.0f, raw[2] / 8192.0f};
   float gyroMax = max(abs(raw[4]), max(abs(raw[5]), abs(raw[6]))) / 65.5f;
 
-  if (imuStream) {   // raw stream for calibration; gestures are paused meanwhile
+  if ((int32_t)(streamUntil - now) > 0) {   // raw stream for calibration; gestures are paused meanwhile
     Serial.printf("I %lu %.3f %.3f %.3f %.1f %.1f %.1f\n", (unsigned long)now, a[0], a[1], a[2],
                   raw[4] / 65.5f, raw[5] / 65.5f, raw[6] / 65.5f);
     return G_NONE;

@@ -57,6 +57,7 @@ static void fetchWeather() {
       weather.code = doc["current"]["weather_code"] | 0;
       weather.at = millis();
       weather.ok = true;
+      linkBroadcastState();   // only sets a flag; the main loop sends it
     }
   }
   http.end();
