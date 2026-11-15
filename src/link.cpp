@@ -118,7 +118,8 @@ static void handle(Port p, String& line) {
   if (cmd == "gif_begin") {
     uploadSize = d["size"] | 0;
     char msg[96];
-    if (!uploadSize || uploadSize > GIF_MAX_BYTES) {
+    if (!uploadSize) { send(p, reply("err", "Empty file")); return; }
+    if (uploadSize > GIF_MAX_BYTES) {
       snprintf(msg, sizeof msg, "GIF is %u KB; the limit is %u KB", (unsigned)(uploadSize / 1024), GIF_MAX_BYTES / 1024);
       send(p, reply("err", msg));
       return;
