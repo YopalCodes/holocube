@@ -60,7 +60,7 @@ void imuDiag() { diagReq = true; }
 // Wiring diagnostic: line levels with pull-ups, then look for the IMU on every free pin pair.
 static void runDiag() {
   Wire.end();
-  const int pins[] = {1, 5, 6, 8, 43, 44};   // XIAO pins not used by the LCD
+  const int pins[] = {1, 6, 8, 9, 43, 44};   // XIAO pins not used by the LCD
   Serial.print("DIAG line levels with pull-up (1 = idle high, 0 = stuck low/shorted):");
   for (int p : pins) { pinMode(p, INPUT_PULLUP); delay(2); Serial.printf(" GPIO%d=%d", p, digitalRead(p)); }
   Serial.println();

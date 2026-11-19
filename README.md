@@ -6,14 +6,16 @@ XIAO ESP32-S3 + ST7789VW LCD + MPU6050. Firmware (PlatformIO/Arduino) in `src/`,
 
 | LCD (ST7789VW) | XIAO pad | GPIO |   | MPU6050 | XIAO pad | GPIO |
 |---|---|---|---|---|---|---|
-| SCL/SCK | D8  | 7 | | SDA | D4 | 5 |
-| SDA/MOSI | D10 | 9 | | SCL | D5 | 6 |
-| DC | D1 | 2 | | VCC | 3V3 | |
+| SCL/SCK | D8  | 7 | | SDA | D9 | 8 |
+| SDA/MOSI | D4 | 5 | | SCL | D10 | 9 |
+| DC | D1 | 2 | | VCC | 5V | |
 | RES | D2 | 3 | | GND | GND | |
 | BLK | D3 | 4 | | | | |
 | VCC / GND | 3V3 / GND | | | | | |
 
-This LCD has no CS pin, so `LCD_CS` is `-1` and the firmware uses SPI mode 3. D0 is free. If you switch to a module that has CS, wire it to D0 and set `LCD_CS 1`. Colors look inverted? Flip `LCD_INVERT`. For a 240×280 panel, set `LCD_H 280` and `LCD_OFFSET_Y 20`.
+The MPU6050 can run from 5V because GY-521 breakouts have their own 3.3 V regulator, and their SDA/SCL pull-ups go to that 3.3 V. A bare MPU6050 without a regulator must use 3V3. The LCD always uses 3V3.
+
+This LCD has no CS pin, so `LCD_CS` is `-1` and the firmware uses SPI mode 3. D0, D5, D6 and D7 are free. If you switch to a module that has CS, wire it to D0 and set `LCD_CS 1`. Colors look inverted? Flip `LCD_INVERT`. For a 240×280 panel, set `LCD_H 280` and `LCD_OFFSET_Y 20`.
 
 ## Build & flash
 

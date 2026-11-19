@@ -1,10 +1,10 @@
 #pragma once
 // ---- Hardware config: edit here to match your wiring ----
-// XIAO ESP32-S3 pad -> GPIO:  D0=1 D1=2 D2=3 D3=4 D4=5(SDA) D5=6(SCL) D8=7(SCK) D9=8 D10=9(MOSI)
+// XIAO ESP32-S3 pad -> GPIO:  D0=1 D1=2 D2=3 D3=4 D4=5 D5=6 D6=43 D7=44 D8=7 D9=8 D10=9
 
 // ST7789VW LCD (SPI)
 #define LCD_SCK    7    // D8
-#define LCD_MOSI   9    // D10
+#define LCD_MOSI   5    // D4  (the LCD's "SDA" pin)
 #define LCD_DC     2    // D1
 #define LCD_CS     -1   // module has no CS pin -> SPI mode 3 (set to 1 / D0 if you use a module with CS)
 #define LCD_RST    3    // D2
@@ -16,8 +16,8 @@
 #define LCD_SPI_HZ 80000000
 
 // MPU6050 (I2C)
-#define IMU_SDA    5    // D4
-#define IMU_SCL    6    // D5
+#define IMU_SDA    8    // D9
+#define IMU_SCL    9    // D10
 #define IMU_ADDR   0x68
 
 // Gesture axes: roll = atan2(accel[ROLL_AXIS], accel[UP_AXIS] * UP_SIGN) * ROLL_SIGN   (axis 0=x 1=y 2=z)
