@@ -35,6 +35,10 @@
   #stGif { background:var(--acc) } #stOther { background:var(--mut) } #stNew { background:var(--ok) }
   #stNew.over { background:var(--err) }
   #stWarn.err { color:var(--err) }
+  .optwrap { display:flex; gap:12px; flex-wrap:wrap; margin-top:10px }
+  #cropPrev { width:160px; height:160px; background:#000; border-radius:8px; flex:none }
+  .opts { flex:1; min-width:180px } .opts label { margin-top:4px } .opts input[type=range] { padding:0 }
+  #opts:not(.video) .vid { display:none }
 </style>
 </head>
 <body>
@@ -71,7 +75,22 @@
         <div class="meter" role="meter" aria-label="Device storage used"><div id="stGif" title="Current GIF"></div><div id="stOther" title="Other files"></div><div id="stNew" title="New GIF"></div></div>
         <div id="stWarn" class="mut"></div>
       </div>
-      <input type="file" id="gifFile" accept="image/gif,image/png,image/jpeg,image/webp">
+      <input type="file" id="gifFile" accept="image/gif,image/png,image/jpeg,image/webp,video/*">
+      <div class="mut" style="margin-top:6px">Pick a GIF, an image, or a video. For a TikTok: Share → Save video, then pick it here. 5–8 seconds fits best.</div>
+      <div id="opts" class="hide">
+        <div class="optwrap">
+          <canvas id="cropPrev" width="240" height="240" aria-label="Crop preview"></canvas>
+          <div class="opts">
+            <div class="vid"><label>Start <span id="vStartV"></span></label><input id="vStart" type="range" min="0" max="10" step="0.1" value="0"></div>
+            <div class="vid"><label>Length <span id="vLenV"></span></label><input id="vLen" type="range" min="1" max="15" step="0.5" value="6"></div>
+            <div class="vid"><label>Frame rate</label><select id="vFps"><option>8</option><option selected>10</option><option>12</option><option>15</option></select></div>
+            <div><label>Crop position <span id="vCropV"></span></label><input id="vCrop" type="range" min="0" max="100" value="50"></div>
+            <div><label>Black out background <span id="vCutV"></span></label><input id="vCut" type="range" min="0" max="80" value="0"></div>
+          </div>
+        </div>
+        <div class="mut">Black shows as see-through in the cube. Raise "Black out background" to make dark areas vanish so the subject floats.</div>
+        <button id="bConv" style="margin-top:8px">Convert</button>
+      </div>
       <div class="row" style="margin-top:10px"><img id="preview" alt="GIF preview"><span id="gifInfo" class="mut"></span></div>
       <progress id="prog" value="0" max="1" class="hide"></progress>
       <div class="row" style="margin-top:10px">
@@ -245,21 +264,71 @@ $('bDelYes').onclick = async () => {
   catch (e) { $('gifInfo').textContent = 'Delete failed: ' + e.message; }
 };
 
-// ---- GIF: decode any image, crop to 240x240, re-encode; drop frames until under size cap ----
-async function convert(file) {
+// ---- GIF: decode any image or video, crop to 240x240, re-encode; drop frames until under size cap ----
+let srcFile = null, srcVideo = null, srcStill = null;
+const cv = new OffscreenCanvas(SIZE, SIZE), ctx = cv.getContext('2d', { willReadFrequently: true });
+
+// Cover-crop: the overflowing axis is positioned by the crop slider (0 = top/left, 100 = bottom/right).
+function drawCover(c, src, w, h) {
+  const sc = Math.max(SIZE / w, SIZE / h), dw = w * sc, dh = h * sc, p = $('vCrop').value / 100;
+  c.fillStyle = '#000'; c.fillRect(0, 0, SIZE, SIZE);
+  c.drawImage(src, (SIZE - dw) * p, (SIZE - dh) * p, dw, dh);
+}
+// Dark pixels -> pure black, which the beam splitter shows as empty space.
+function grab(c) {
+  const im = c.getImageData(0, 0, SIZE, SIZE), d = im.data, t = +$('vCut').value;
+  if (t) for (let i = 0; i < d.length; i += 4) if (d[i] * .3 + d[i + 1] * .59 + d[i + 2] * .11 < t) d[i] = d[i + 1] = d[i + 2] = 0;
+  return im;
+}
+const seek = (v, t) => new Promise(r => { const done = () => { clearTimeout(to); r(); }, to = setTimeout(done, 1500); v.onseeked = done; v.currentTime = t; });
+
+async function imageFrames(file) {
   const dec = new ImageDecoder({ data: await file.arrayBuffer(), type: file.type || 'image/gif' });
   await dec.tracks.ready;
-  const total = dec.tracks.selectedTrack.frameCount;
-  const cv = new OffscreenCanvas(SIZE, SIZE), ctx = cv.getContext('2d', { willReadFrequently: true });
-  const frames = [];
+  const total = dec.tracks.selectedTrack.frameCount, frames = [];
   for (let i = 0; i < total; i++) {
     const { image } = await dec.decode({ frameIndex: i });
-    const w = image.displayWidth, h = image.displayHeight, sc = Math.max(SIZE / w, SIZE / h);
-    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, SIZE, SIZE);
-    ctx.drawImage(image, (SIZE - w * sc) / 2, (SIZE - h * sc) / 2, w * sc, h * sc);
-    frames.push({ data: ctx.getImageData(0, 0, SIZE, SIZE).data, delay: Math.max(20, (image.duration || 100000) / 1000) });
+    drawCover(ctx, image, image.displayWidth, image.displayHeight);
+    frames.push({ data: grab(ctx).data, delay: Math.max(20, (image.duration || 100000) / 1000) });
     image.close();
   }
+  return frames;
+}
+
+async function videoFrames(v) {
+  const start = Math.min(+$('vStart').value, v.duration - 0.1), len = Math.min(+$('vLen').value, v.duration - start);
+  const fps = +$('vFps').value, n = Math.max(1, Math.floor(len * fps)), frames = [];
+  for (let i = 0; i < n; i++) {
+    await seek(v, start + i / fps);
+    drawCover(ctx, v, v.videoWidth, v.videoHeight);
+    frames.push({ data: grab(ctx).data, delay: 1000 / fps });
+    $('gifInfo').textContent = `Reading frame ${i + 1} / ${n}…`;
+  }
+  return frames;
+}
+
+async function drawCropPreview() {
+  $('vStartV').textContent = (+$('vStart').value).toFixed(1) + ' s';
+  $('vLenV').textContent = $('vLen').value + ' s';
+  $('vCropV').textContent = $('vCrop').value + '%';
+  $('vCutV').textContent = $('vCut').value == 0 ? 'off' : $('vCut').value;
+  const pc = $('cropPrev').getContext('2d');
+  if (srcVideo) { await seek(srcVideo, Math.min(+$('vStart').value, srcVideo.duration - 0.1)); drawCover(ctx, srcVideo, srcVideo.videoWidth, srcVideo.videoHeight); }
+  else if (srcStill) drawCover(ctx, srcStill, srcStill.width, srcStill.height);
+  else return;
+  pc.putImageData(grab(ctx), 0, 0);
+}
+let pvBusy = false, pvAgain = false;   // coalesce slider drags so seeks don't pile up
+async function schedulePreview() {
+  if (pvBusy) { pvAgain = true; return; }
+  pvBusy = true;
+  try { do { pvAgain = false; await drawCropPreview(); } while (pvAgain); } finally { pvBusy = false; }
+}
+for (const id of ['vStart', 'vLen', 'vCrop', 'vCut']) $(id).oninput = schedulePreview;
+
+async function convert() {
+  const frames = srcVideo ? await videoFrames(srcVideo) : await imageFrames(srcFile);
+  $('gifInfo').textContent = 'Encoding…';
   for (let step = Math.max(1, Math.ceil(frames.length / 90)); ; step++) {
     const g = GIFEncoder();
     for (let i = 0; i < frames.length; i += step) {
@@ -273,16 +342,42 @@ async function convert(file) {
   }
 }
 
-$('gifFile').onchange = async e => {
-  const f = e.target.files[0]; if (!f) return;
-  $('bGif').disabled = true; $('gifInfo').textContent = 'Converting…';
+async function runConvert() {
+  $('bGif').disabled = $('bConv').disabled = true; $('gifInfo').textContent = 'Converting…';
   try {
-    const { out, frames } = await convert(f);
+    const { out, frames } = await convert();
     gifBytes = out;
     $('preview').src = URL.createObjectURL(new Blob([out], { type: 'image/gif' })); $('preview').style.display = 'block';
     $('gifInfo').textContent = `${frames} frames · ${(out.length / 1024).toFixed(0)} KB`;
     renderStorage();
-  } catch (err) { $('gifInfo').textContent = 'Could not read image: ' + err.message; }
+  } catch (err) { $('gifInfo').textContent = 'Could not convert: ' + err.message; }
+  $('bConv').disabled = false;
+}
+$('bConv').onclick = runConvert;
+
+$('gifFile').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  if (srcVideo) URL.revokeObjectURL(srcVideo.src);
+  srcFile = f; srcVideo = srcStill = null; gifBytes = null;
+  $('bGif').disabled = true; $('preview').style.display = 'none'; $('gifInfo').textContent = 'Loading…';
+  const isVideo = f.type.startsWith('video/') || /\.(mp4|mov|webm|m4v)$/i.test(f.name);
+  $('opts').classList.remove('hide'); $('opts').classList.toggle('video', isVideo);
+  try {
+    if (isVideo) {
+      const v = document.createElement('video');
+      v.muted = true; v.playsInline = true; v.preload = 'auto'; v.src = URL.createObjectURL(f);
+      await new Promise((res, rej) => { v.onloadeddata = res; v.onerror = () => rej(new Error("this browser can't play that video format (try MP4)")); });
+      srcVideo = v;
+      $('vStart').max = Math.max(0, v.duration - 1).toFixed(1); $('vStart').value = 0;
+      $('vLen').max = Math.min(15, Math.max(1, v.duration)); $('vLen').value = Math.min(6, v.duration).toFixed(1);
+      $('gifInfo').textContent = `Video ${v.duration.toFixed(1)} s, ${v.videoWidth}×${v.videoHeight}. Pick the clip, then Convert.`;
+      await drawCropPreview();
+    } else {
+      srcStill = await createImageBitmap(f);
+      await drawCropPreview();
+      await runConvert();
+    }
+  } catch (err) { $('gifInfo').textContent = 'Could not read file: ' + err.message; }
 };
 
 $('bGif').onclick = async () => {
