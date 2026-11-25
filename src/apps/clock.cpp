@@ -1,5 +1,5 @@
 // Clock & Weather: weather strip on top, big glowing time in the middle, date at the bottom,
-// over a seasonal particle layer. Draw order: particles -> ornaments -> time -> weather strip.
+// over a seasonal particle layer. Draw order: particles -> lights -> time -> weather strip.
 // Everything goes into the full-screen PSRAM canvas and is pushed in one go (no flicker).
 #include "../core.h"
 
@@ -82,7 +82,7 @@ static constexpr int NP_MAX = 24;
 static Particle ps[NP_MAX];
 static int np = 0;
 static Fx fx = FX_NONE;
-static bool ornaments = false;
+static bool lights = false;   // winter Christmas lights
 static float snowLayer[W / 4];   // settled snow height per 4-px column; melts slowly
 static float gx = 0, gy = 1;     // gravity direction in screen space (from the IMU roll)
 
@@ -91,29 +91,29 @@ static void spawn(Particle& p, bool anywhere) {
   p.vx = p.vy = 0;
   switch (fx) {
     case FX_FIREFLIES:
-      p.x = frand(8, W - 8); p.y = frand(40, H - 8); p.s = frand(1.5f, 2.5f);
-      p.vx = frand(-8, 8); p.vy = frand(-8, 8); p.col = rgb(190, 255, 90);
+      p.x = frand(10, W - 10); p.y = frand(40, H - 10); p.s = frand(3, 5);
+      p.vx = frand(-10, 10); p.vy = frand(-10, 10); p.col = rgb(200, 255, 90);
       return;
     case FX_SPARKLE:
-      p.x = frand(6, W - 6); p.y = frand(6, H - 6); p.s = frand(2, 4.5f);
-      p.v = frand(0.35f, 0.8f); p.ph = anywhere ? frand(0, 1) : 0; p.col = rgb(170, 205, 255);
+      p.x = frand(8, W - 8); p.y = frand(8, H - 8); p.s = frand(5, 10);
+      p.v = frand(0.35f, 0.8f); p.ph = anywhere ? frand(0, 1) : 0; p.col = rgb(190, 220, 255);
       return;
     case FX_SNOW:
-      p.s = frand(1, 2.6f); p.v = frand(14, 24) * (0.6f + p.s * 0.3f);
-      p.col = dim(rgb(225, 235, 255), frand(0.45f, 0.85f));
+      p.s = frand(2, 5); p.v = frand(14, 24) * (0.5f + p.s * 0.2f);
+      p.col = dim(rgb(235, 242, 255), frand(0.65f, 1.0f));
       break;
     case FX_RAIN:
-      p.s = frand(5, 9); p.v = frand(150, 210);
-      p.col = dim(rgb(90, 150, 255), frand(0.4f, 0.7f));
+      p.s = frand(12, 20); p.v = frand(170, 230);
+      p.col = dim(rgb(110, 170, 255), frand(0.6f, 0.95f));
       break;
     case FX_PETALS:
-      p.s = frand(1.5f, 3); p.v = frand(14, 24);
-      p.col = dim(frand(0, 1) < 0.5f ? rgb(255, 150, 195) : rgb(255, 205, 225), frand(0.45f, 0.75f));
+      p.s = frand(4, 7); p.v = frand(16, 28);
+      p.col = dim(frand(0, 1) < 0.5f ? rgb(255, 140, 190) : rgb(255, 200, 225), frand(0.7f, 1.0f));
       break;
     case FX_LEAVES: {
       static const uint16_t pal[] = {rgb(230, 120, 30), rgb(200, 60, 40), rgb(220, 175, 40), rgb(170, 90, 40)};
-      p.s = frand(2.5f, 4); p.v = frand(18, 30);
-      p.col = dim(pal[esp_random() % 4], frand(0.5f, 0.8f));
+      p.s = frand(5, 8.5f); p.v = frand(20, 32);
+      p.col = dim(pal[esp_random() % 4], frand(0.75f, 1.0f));
       break;
     }
     default: return;
@@ -128,8 +128,8 @@ static void spawn(Particle& p, bool anywhere) {
 static void setFx(Fx want) {
   if (want == fx) return;
   fx = want;
-  np = fx == FX_SNOW ? 24 : fx == FX_RAIN ? 22 : fx == FX_PETALS ? 16 : fx == FX_LEAVES ? 14 :
-       fx == FX_FIREFLIES ? 14 : fx == FX_SPARKLE ? 12 : 0;
+  np = fx == FX_SNOW ? 22 : fx == FX_RAIN ? 20 : fx == FX_PETALS ? 14 : fx == FX_LEAVES ? 12 :
+       fx == FX_FIREFLIES ? 12 : fx == FX_SPARKLE ? 10 : 0;
   for (int i = 0; i < np; i++) spawn(ps[i], true);
 }
 
@@ -159,7 +159,7 @@ static void chooseFx(uint8_t pref, const struct tm* tm) {
       }
   }
   if (!CLOCK_FX) { want = FX_NONE; orn = false; }
-  ornaments = orn;
+  lights = orn;
   setFx(want);
 }
 
@@ -168,13 +168,13 @@ static void stepParticles(LGFX_Sprite& c, float dt, float t) {
     Particle& p = ps[i];
     switch (fx) {
       case FX_SNOW: case FX_PETALS: case FX_LEAVES: {
-        float sway = sinf(t * (fx == FX_SNOW ? 1.3f : 1.0f) + p.ph) * (fx == FX_SNOW ? 10 : 22);
+        float sway = sinf(t * (fx == FX_SNOW ? 1.3f : 1.0f) + p.ph) * (fx == FX_SNOW ? 14 : 28);
         p.x += (gx * p.v + gy * sway) * dt;   // fall along gravity, sway across it
         p.y += (gy * p.v - gx * sway) * dt;
         if (fx == FX_SNOW && p.x >= 0 && p.x < W) {
           int col = (int)p.x / 4;
           if (p.y >= H - snowLayer[col]) {   // landed: pile up, spilling into lower neighbours
-            snowLayer[col] = min(snowLayer[col] + p.s * 0.45f, 9.0f);
+            snowLayer[col] = min(snowLayer[col] + p.s * 0.3f, 12.0f);
             for (int n : {col - 1, col + 1})
               if (n >= 0 && n < W / 4 && snowLayer[col] - snowLayer[n] > 2) { snowLayer[col] -= 0.5f; snowLayer[n] += 0.5f; }
             spawn(p, false);
@@ -205,10 +205,11 @@ static void stepParticles(LGFX_Sprite& c, float dt, float t) {
     int x = (int)p.x, y = (int)p.y;
     switch (fx) {
       case FX_SNOW:
-        if (p.s < 1.8f) c.fillRect(x, y, 2, 2, p.col); else c.fillSmoothCircle(x, y, 2, p.col);
+        if (p.s > 3.5f) c.fillSmoothCircle(x, y, (int)p.s + 2, dim(p.col, 0.18f));   // soft halo on big flakes
+        c.fillSmoothCircle(x, y, (int)(p.s * 0.7f + 0.5f), p.col);
         break;
       case FX_RAIN:
-        c.drawLine(x, y, (int)(p.x - gx * p.s), (int)(p.y - gy * p.s), p.col);
+        c.drawWideLine(x, y, (int)(p.x - gx * p.s), (int)(p.y - gy * p.s), 1.0f, p.col);
         break;
       case FX_PETALS: {
         float a = t * 2.2f + p.ph;
@@ -227,16 +228,23 @@ static void stepParticles(LGFX_Sprite& c, float dt, float t) {
         float b = sinf(t * 1.8f + p.ph);
         b = b > 0 ? b * b * b : 0;
         if (b < 0.05f) break;
-        if (b > 0.4f) c.fillSmoothCircle(x, y, (int)(p.s + 3), dim(p.col, b * 0.22f));
-        c.fillSmoothCircle(x, y, (int)(p.s + 0.5f), dim(p.col, b));
+        if (b > 0.25f) {
+          c.fillSmoothCircle(x, y, (int)(p.s * 2.6f), dim(p.col, b * 0.18f));
+          c.fillSmoothCircle(x, y, (int)(p.s * 1.6f), dim(p.col, b * 0.35f));
+        }
+        c.fillSmoothCircle(x, y, (int)(p.s * 0.8f + 0.5f), dim(p.col, b));
         break;
       }
       case FX_SPARKLE: {
         float b = sinf(p.ph * 3.14159f);
         int l = (int)(p.s * b);
-        uint16_t col = dim(p.col, b * 0.7f);
-        c.drawFastHLine(x - l, y, 2 * l + 1, col);
-        c.drawFastVLine(x, y - l, 2 * l + 1, col);
+        uint16_t col = dim(p.col, b);
+        c.drawWideLine(x - l, y, x + l, y, 1.0f, col);
+        c.drawWideLine(x, y - l, x, y + l, 1.0f, col);
+        int d = l * 2 / 5;   // short diagonals for a star shape
+        c.drawLine(x - d, y - d, x + d, y + d, dim(col, 0.6f));
+        c.drawLine(x - d, y + d, x + d, y - d, dim(col, 0.6f));
+        c.fillSmoothCircle(x, y, 2, dim(rgb(255, 255, 255), b));
         break;
       }
       default: break;
@@ -249,7 +257,7 @@ static void stepParticles(LGFX_Sprite& c, float dt, float t) {
     any |= h >= 1;
   }
   if (any) {
-    uint16_t col = rgb(150, 158, 175);
+    uint16_t col = rgb(185, 195, 215);
     for (int i = 0; i < W / 4; i++) {
       int h = (int)snowLayer[i];
       if (h > 0) c.fillRect(i * 4, H - h, 4, h, col);
@@ -257,22 +265,39 @@ static void stepParticles(LGFX_Sprite& c, float dt, float t) {
   }
 }
 
-// ---------------- Swinging ornaments (winter) ----------------
-struct Ornament { float px, len, th, w; uint16_t col; };
-static Ornament orn[] = {{26, 30, 0, 0, rgb(205, 40, 60)}, {214, 42, 0, 0, rgb(225, 170, 50)}};
+// ---------------- Christmas lights (winter) ----------------
+// A wire drooping in two swoops across the top; bulbs hang off it toward real gravity and flash
+// in a pattern that changes every 6 s: twinkle, chase, alternate, all pulsing together.
+static constexpr int NB = 13;
+static const uint16_t BULB[] = {rgb(255, 40, 50), rgb(40, 230, 80), rgb(60, 120, 255), rgb(255, 190, 30), rgb(230, 60, 220)};
+static float bulbOn[NB];
 
-static void stepOrnaments(LGFX_Sprite& c, float dt) {
-  float ga = atan2f(gx, gy);   // the angle a string hangs at
-  for (Ornament& o : orn) {
-    float k = 26.0f * 30 / o.len;   // shorter string = faster swing
-    o.w += (-k * sinf(o.th - ga) - 1.1f * o.w) * dt;
-    if (frand(0, 1) < dt * 0.25f) o.w += frand(-0.6f, 0.6f);   // occasional breeze
-    o.th += o.w * dt;
-    int bx = o.px + sinf(o.th) * o.len, by = cosf(o.th) * o.len;
-    c.drawLine(o.px, 0, bx, by, rgb(95, 90, 75));
-    c.fillRect(bx - 2, by - 9, 5, 3, rgb(150, 130, 70));
-    c.fillSmoothCircle(bx, by, 7, dim(o.col, 0.85f));
-    c.fillSmoothCircle(bx - 2, by - 2, 2, dim(rgb(255, 255, 255), 0.6f));
+static float wireY(float x) { return 3 + 13 * fabsf(sinf(x * 3.14159f / 120)); }   // two swoops, 13 px sag
+
+static void stepLights(LGFX_Sprite& c, float dt, float t) {
+  const uint16_t wire = rgb(30, 80, 40);
+  for (int x = 0; x < W; x += 4) c.drawLine(x, wireY(x), x + 4, wireY(x + 4), wire);
+  int mode = (int)(t / 6) % 4, step = (int)(t * 6);
+  for (int i = 0; i < NB; i++) {
+    float target;
+    switch (mode) {
+      case 0: target = sinf(t * 2.3f + i * 2.17f) > 0.2f; break;      // twinkle
+      case 1: target = (step - i + 400) % 4 == 0; break;              // chase
+      case 2: target = ((int)(t * 1.5f) + i) % 2; break;              // alternate
+      default: target = 0.55f + 0.45f * sinf(t * 3); break;          // pulse together
+    }
+    bulbOn[i] += (target - bulbOn[i]) * min(1.0f, dt * 14);           // quick fade, not a hard cut
+    float x = 9 + i * (W - 18) / (NB - 1.0f), y = wireY(x);
+    int bx = x + gx * 7, by = y + gy * 7;                             // bulb hangs off the wire
+    uint16_t col = BULB[i % 5];
+    float on = bulbOn[i];
+    c.drawLine(x, y, bx, by, wire);
+    if (on > 0.3f) {
+      c.fillSmoothCircle(bx, by, 13, dim(col, 0.10f * on));
+      c.fillSmoothCircle(bx, by, 9, dim(col, 0.22f * on));
+    }
+    c.fillEllipse(bx, by + (int)(gy * 2), 4, 5, dim(col, 0.18f + 0.82f * on));
+    c.fillSmoothCircle(bx - 1, by - 1, 1, dim(rgb(255, 255, 255), 0.7f * on));
   }
 }
 
@@ -363,7 +388,7 @@ struct ClockApp : App {
   }
 
   void drawStrip(LGFX_Sprite& c) {
-    const int y = 24;
+    const int y = 34;
     char buf[8];
     c.setFont(&fonts::DejaVu24);
     c.setTextDatum(textdatum_t::middle_left);
@@ -396,7 +421,7 @@ struct ClockApp : App {
 
     c.fillScreen(TFT_BLACK);
     stepParticles(c, dt, t);
-    if (ornaments) stepOrnaments(c, dt);
+    if (lights) stepLights(c, dt, t);
     if (tv) drawTime(c, tm, ms); else drawNoTime(c);
     drawStrip(c);
     dirty = false;

@@ -50,7 +50,7 @@ After a switch you must return within 12° of level before the next one can fire
 Weather icon and temperature along the top, a big glowing time in the middle (the colon pulses each second and a thin bar sweeps through the minute), and the date at the bottom.
 
 Behind it is a seasonal background:
-- **Winter:** swinging ornaments, with sparkles, or snow that piles up at the bottom and slowly melts.
+- **Winter:** flashing Christmas lights, with sparkles, or snow that piles up at the bottom and slowly melts.
 - **Spring:** petals.
 - **Summer:** fireflies.
 - **Fall:** leaves.

@@ -132,7 +132,7 @@
         <div><label>Clock background</label>
           <select id="fx">
             <option value="0">Auto (season + live weather)</option><option value="1">Off</option>
-            <option value="2">Winter: snow + ornaments</option><option value="7">Winter: sparkles + ornaments</option>
+            <option value="2">Winter: snow + lights</option><option value="7">Winter: sparkles + lights</option>
             <option value="3">Rain</option><option value="4">Spring petals</option>
             <option value="5">Summer fireflies</option><option value="6">Fall leaves</option>
           </select></div>
@@ -454,7 +454,7 @@ function drawPreview() {
     const sky = c => c == null ? '' : c === 0 ? '☀️' : c <= 2 ? '⛅' : c === 45 || c === 48 ? '🌫️' : c >= 51 && c <= 67 ? '🌧️'
       : c >= 71 && c <= 77 || c === 85 || c === 86 ? '🌨️' : c >= 80 && c <= 82 ? '🌦️' : c >= 95 ? '⛈️' : '☁️';
     const temp = state.wT != null ? `${Math.round(state.wT)}°` : '--°';
-    txt(`${sky(state.wCode)} ${temp}`.trim(), 24, F.f4, state.wT != null ? '#ffbe5a' : '#5a5f6e');
+    txt(`${sky(state.wCode)} ${temp}`.trim(), 34, F.f4, state.wT != null ? '#ffbe5a' : '#5a5f6e');
     if (!state.timeOk) {
       txt('--:--', 108, F.big, '#464b5a'); txt(state.wifi, 162, F.f2, C.lgrey);
       txt('Set Wi-Fi on the', 192, F.f2, C.dgrey); txt('control page', 210, F.f2, C.dgrey);
