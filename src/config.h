@@ -14,7 +14,7 @@
 #define LCD_OFFSET_Y 0
 #define LCD_INVERT true // most ST7789VW IPS panels need inversion; flip if colours look negative
 #define LCD_SPI_HZ 80000000
-#define DEFAULT_ROT 2   // 0-3 = 0/90/180/270 deg clockwise, 4-7 = mirrored; the control page setting overrides this
+#define DEFAULT_ROT 3   // 0-3 = 0/90/180/270 deg clockwise, 4-7 = mirrored; the control page setting overrides this
 
 // MPU6050 (I2C)
 #define IMU_SDA    8    // D9
