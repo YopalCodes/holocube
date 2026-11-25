@@ -22,7 +22,7 @@
 #define IMU_ADDR   0x68
 
 // Gesture axes: roll = atan2(accel[ROLL_AXIS], accel[UP_AXIS] * UP_SIGN) * ROLL_SIGN   (axis 0=x 1=y 2=z)
-// Run tools/calibrate_roll.py and tools/calibrate_bob.py to measure these.
+// Run tools/calibrate_roll.py to measure these.
 #define IMU_ROLL_AXIS 0
 #define IMU_UP_AXIS   2
 #define IMU_UP_SIGN   1   // -1 if the IMU is mounted upside down
@@ -33,10 +33,12 @@
 #define ROLL_HOLD_MS     120     // must stay tilted this long
 #define ROLL_REARM_DEG   12.0f   // must return this close to level before next switch
 #define GESTURE_COOLDOWN 500
-#define BOB_G            0.68f   // vertical accel spike (g) counted as one bob
-#define BOB_MIN_GAP_MS   150
-#define BOB_WINDOW_MS    670     // second bob must arrive within this window
-#define BOB_MAX_TILT_DEG 18.0f   // ignore bobs while tilted
+// QR gesture: tilt toward you, back to level, toward you again (the same direction twice).
+#define IMU_PITCH_AXIS   1       // the forward/back tilt axis (the one roll doesn't use)
+#define PITCH_TRIGGER_DEG 20.0f  // how far each "toward" tilt must go
+#define PITCH_LEVEL_DEG   8.0f   // "back" = return within this of level
+#define PITCH_STEP_MS     500    // max time from leaving the first tilt to reaching the second
+#define PITCH_MAX_ROLL_DEG 18.0f // ignored while tilted sideways
 
 #define QR_SHOW_MS       20000
 #define CLOCK_FX         1       // seasonal particles behind the clock (0 = off)

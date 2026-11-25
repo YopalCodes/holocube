@@ -1,14 +1,14 @@
-// MPU6050 over raw I2C + gesture detection (roll left/right, double bob = pick-up)
+// MPU6050 over raw I2C + gesture detection (roll left/right = switch app, tilt-toward twice = QR)
 #include <Wire.h>
 #include "core.h"
 
 static bool ok = false;
-static float rollF = 0, baseMag = 1.0f;
+static float rollF = 0, pitchF = 0;
 static bool armed = true;
 static int tiltDir = 0;
-static uint32_t tiltSince = 0, cooldownUntil = 0, lastPeak = 0, firstPeak = 0;
-static int peaks = 0;
-static bool aboveTh = false;
+static uint32_t tiltSince = 0, cooldownUntil = 0;
+static int nodStage = 0, nodDir = 0;   // QR gesture: 0 idle, 1 tilted, 2 back at level
+static uint32_t nodAt = 0;
 static volatile uint32_t streamUntil = 0;   // raw stream for tools/calibrate_*.py
 static QueueHandle_t gestures;
 static Gesture imuPoll(uint32_t now);
@@ -111,7 +111,6 @@ static Gesture imuPoll(uint32_t now) {
   int16_t raw[7];
   for (int i = 0; i < 7; i++) raw[i] = (Wire.read() << 8) | Wire.read();
   float a[3] = {raw[0] / 8192.0f, raw[1] / 8192.0f, raw[2] / 8192.0f};
-  float gyroMax = max(abs(raw[4]), max(abs(raw[5]), abs(raw[6]))) / 65.5f;
 
   if ((int32_t)(streamUntil - now) > 0) {   // raw stream for calibration; gestures are paused meanwhile
     Serial.printf("I %lu %.3f %.3f %.3f %.1f %.1f %.1f\n", (unsigned long)now, a[0], a[1], a[2],
@@ -129,26 +128,29 @@ static Gesture imuPoll(uint32_t now) {
   if (armed && dir && now - tiltSince >= ROLL_HOLD_MS && (int32_t)(now - cooldownUntil) >= 0) {
     armed = false;
     cooldownUntil = now + GESTURE_COOLDOWN;
-    peaks = 0;
+    nodStage = 0;
     return dir > 0 ? G_RIGHT : G_LEFT;
   }
 
-  // ---- Double bob (vertical spikes while level) ----
-  float mag = sqrtf(a[0] * a[0] + a[1] * a[1] + a[2] * a[2]);
-  float dyn = mag - baseMag;
-  if (fabsf(dyn) < 0.1f) baseMag += 0.01f * dyn;   // slow gravity baseline
-  if (peaks && now - firstPeak > BOB_WINDOW_MS) peaks = 0;
-  bool level = fabsf(rollF) < BOB_MAX_TILT_DEG && gyroMax < 200;
-  bool above = dyn > BOB_G;
-  if (above && !aboveTh && level && now - lastPeak > BOB_MIN_GAP_MS && (int32_t)(now - cooldownUntil) >= 0) {
-    lastPeak = now;
-    if (peaks++ == 0) firstPeak = now;
-    else {
-      peaks = 0;
-      cooldownUntil = now + GESTURE_COOLDOWN * 2;
-      return G_PICKUP;
-    }
+  // ---- QR: tilt toward, back to level, same tilt again within PITCH_STEP_MS ----
+  float pitch = atan2f(a[IMU_PITCH_AXIS], a[IMU_UP_AXIS] * IMU_UP_SIGN) * 57.2958f;
+  pitchF += 0.25f * (pitch - pitchF);
+  int pdir = pitchF > PITCH_TRIGGER_DEG ? 1 : pitchF < -PITCH_TRIGGER_DEG ? -1 : 0;
+  if (fabsf(rollF) > PITCH_MAX_ROLL_DEG || (int32_t)(now - cooldownUntil) < 0) { nodStage = 0; return G_NONE; }
+  switch (nodStage) {
+    case 0: if (pdir) { nodStage = 1; nodDir = pdir; } break;                  // first tilt (either way)
+    case 1:
+      if (fabsf(pitchF) < PITCH_LEVEL_DEG) { nodStage = 2; nodAt = now; }     // came back
+      else if (pdir == -nodDir) nodStage = 0;
+      break;
+    case 2:
+      if (now - nodAt > PITCH_STEP_MS) { nodStage = pdir ? 1 : 0; nodDir = pdir ? pdir : nodDir; nodAt = now; }  // too slow
+      else if (pdir == nodDir) {
+        nodStage = 0;
+        cooldownUntil = now + GESTURE_COOLDOWN * 2;
+        return G_PICKUP;
+      } else if (pdir == -nodDir) nodStage = 0;
+      break;
   }
-  aboveTh = above;
   return G_NONE;
 }
