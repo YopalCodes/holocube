@@ -13,6 +13,7 @@ static volatile uint32_t streamUntil = 0;   // raw stream for tools/calibrate_*.
 static QueueHandle_t gestures;
 static Gesture imuPoll(uint32_t now);
 
+float imuRollDeg() { return rollF; }
 void imuSetStream(bool on) { streamUntil = on ? millis() + 3000 : 0; }
 
 Gesture imuNextGesture() {

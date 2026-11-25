@@ -11,45 +11,8 @@ static void centerText(LGFX_Sprite& c, const String& s, int y, const lgfx::IFont
   c.drawString(s, c.width() / 2, y);
 }
 
-// ---------------- Clock + Weather ----------------
-struct ClockApp : App {
-  time_t shown = 0;
-  bool dirty = true;
-  const char* name() const override { return "Clock & Weather"; }
-  void forceRedraw() override { dirty = true; }
-  bool draw(LGFX_Sprite& c) override {
-    time_t t = time(nullptr);
-    if (t == shown && !dirty) return false;
-    shown = t; dirty = false;
-    c.fillScreen(TFT_BLACK);
-    int w = c.width(), h = c.height();
-    if (!timeValid()) {
-      centerText(c, "--:--", h / 2 - 30, &fonts::Font7, TFT_DARKGREY);
-      centerText(c, wifiStatus(), h / 2 + 30, &fonts::Font2, TFT_LIGHTGREY);
-      centerText(c, "Set Wi-Fi on control page", h / 2 + 50, &fonts::Font2, TFT_DARKGREY);
-      return true;
-    }
-    struct tm tm; localtime_r(&t, &tm);
-    char buf[32];
-    int hr = tm.tm_hour % 12 ? tm.tm_hour % 12 : 12;
-    snprintf(buf, sizeof buf, "%d:%02d", hr, tm.tm_min);
-    centerText(c, buf, h / 2 - 40, &fonts::Font7, TFT_WHITE);
-    snprintf(buf, sizeof buf, "%02d %s", tm.tm_sec, tm.tm_hour < 12 ? "AM" : "PM");
-    centerText(c, buf, h / 2 + 4, &fonts::Font4, TFT_CYAN);
-    strftime(buf, sizeof buf, "%a %b %d", &tm);
-    centerText(c, buf, h / 2 + 34, &fonts::Font4, TFT_LIGHTGREY);
-    c.drawFastHLine(30, h / 2 + 56, w - 60, TFT_DARKGREY);
-    if (weather.ok) {
-      snprintf(buf, sizeof buf, "%.0f F", weather.tempF);
-      centerText(c, buf, h / 2 + 78, &fonts::FreeSansBold12pt7b, TFT_ORANGE);
-      snprintf(buf, sizeof buf, "%s  %.0f mph", weatherText(weather.code), weather.windMph);
-      centerText(c, buf, h / 2 + 102, &fonts::Font2, TFT_LIGHTGREY);
-    } else {
-      centerText(c, "weather...", h / 2 + 80, &fonts::Font2, TFT_DARKGREY);
-    }
-    return true;
-  }
-};
+// Clock & Weather lives in clock.cpp
+extern App* const CLOCK_APP;
 
 // ---------------- Countdown (Eastern time) ----------------
 struct CountdownApp : App {
@@ -172,7 +135,6 @@ struct GifApp : App {
   }
 };
 
-static ClockApp clockApp;
 static GifApp gifApp;
 static CountdownApp countdownApp;
 
@@ -183,5 +145,5 @@ void gifUnload() {
   gifApp.stale = true;
 }
 
-App* const APPS[] = {&clockApp, &gifApp, &countdownApp};
+App* const APPS[] = {CLOCK_APP,&gifApp, &countdownApp};
 const int APP_COUNT = sizeof(APPS) / sizeof(APPS[0]);

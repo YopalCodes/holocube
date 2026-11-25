@@ -129,6 +129,13 @@
             <option value="0">0°</option><option value="1">90°</option><option value="2">180°</option><option value="3">270°</option>
             <option value="4">0° mirrored</option><option value="5">90° mirrored</option><option value="6">180° mirrored</option><option value="7">270° mirrored</option>
           </select></div>
+        <div><label>Clock background</label>
+          <select id="fx">
+            <option value="0">Auto (season + live weather)</option><option value="1">Off</option>
+            <option value="2">Winter: snow + ornaments</option><option value="7">Winter: sparkles + ornaments</option>
+            <option value="3">Rain</option><option value="4">Spring petals</option>
+            <option value="5">Summer fireflies</option><option value="6">Fall leaves</option>
+          </select></div>
         <div><label>QR code URL</label><input id="url"></div>
       </div>
       <button id="bCfg" style="margin-top:10px">Save settings</button>
@@ -222,7 +229,7 @@ function render(s) {
   if (!formFilled) {
     formFilled = true;
     $('ssid').value = s.ssid; $('evn').value = s.evn; $('evt').value = s.evt;
-    $('lat').value = s.lat.toFixed(4); $('lon').value = s.lon.toFixed(4); $('rot').value = s.rot;
+    $('lat').value = s.lat.toFixed(4); $('lon').value = s.lon.toFixed(4); $('rot').value = s.rot; $('fx').value = s.fx ?? 0;
     $('url').value = s.url.includes('YOUR-GITHUB-USERNAME') || !s.url ? location.href.split('#')[0] : s.url;
   }
   $('gifInfo').textContent ||= s.gif ? `Device has a ${(s.gif / 1024).toFixed(0)} KB GIF` : 'No GIF on device yet';
@@ -407,7 +414,7 @@ $('bGif').onclick = async () => {
 // ---- Screen preview: re-draws the active app the way the firmware does (src/apps/apps.cpp) ----
 const scr = $('scr').getContext('2d');
 const C = { white: '#fff', cyan: '#0ff', lgrey: '#d3d3d3', dgrey: '#7b7d7b', orange: '#ffa500', purple: '#9c9aff', magenta: '#f0f' };
-const F = { big: '700 50px ui-monospace, Consolas, monospace', f4: '600 21px system-ui, sans-serif', f2: '13px system-ui, sans-serif',
+const F = { big: '700 50px ui-monospace, Consolas, monospace', huge: '400 62px system-ui, sans-serif', f2b: '17px system-ui, sans-serif', f4: '600 21px system-ui, sans-serif', f2: '13px system-ui, sans-serif',
             b12: '700 22px Arial, sans-serif', b18: '700 30px Arial, sans-serif' };
 const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const etFmt = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hourCycle: 'h23', year: 'numeric', month: '2-digit',
@@ -443,19 +450,24 @@ function drawPreview() {
   $('scrNote').textContent = `Showing ${app}. Fonts are approximate.`;
   scr.fillStyle = '#000'; scr.fillRect(0, 0, 240, 240);
   if (app === 'Clock & Weather') {
+    // Weather strip on top (the device draws its own icons; emoji here are a stand-in)
+    const sky = c => c == null ? '' : c === 0 ? '☀️' : c <= 2 ? '⛅' : c === 45 || c === 48 ? '🌫️' : c >= 51 && c <= 67 ? '🌧️'
+      : c >= 71 && c <= 77 || c === 85 || c === 86 ? '🌨️' : c >= 80 && c <= 82 ? '🌦️' : c >= 95 ? '⛈️' : '☁️';
+    const temp = state.wT != null ? `${Math.round(state.wT)}°` : '--°';
+    txt(`${sky(state.wCode)} ${temp}`.trim(), 24, F.f4, state.wT != null ? '#ffbe5a' : '#5a5f6e');
     if (!state.timeOk) {
-      txt('--:--', 90, F.big, C.dgrey); txt(state.wifi, 150, F.f2, C.lgrey); txt('Set Wi-Fi on control page', 170, F.f2, C.dgrey);
+      txt('--:--', 108, F.big, '#464b5a'); txt(state.wifi, 162, F.f2, C.lgrey);
+      txt('Set Wi-Fi on the', 192, F.f2, C.dgrey); txt('control page', 210, F.f2, C.dgrey);
       return;
     }
-    const p = et(), h = +p.hour;
-    txt(`${h % 12 || 12}:${p.minute}`, 80, F.big, C.white);
-    txt(`${p.second} ${h < 12 ? 'AM' : 'PM'}`, 124, F.f4, C.cyan);
-    txt(`${p.weekday} ${MON[+p.month - 1]} ${p.day}`, 154, F.f4, C.lgrey);
-    scr.fillStyle = C.dgrey; scr.fillRect(30, 176, 180, 1);
-    if (state.wT != null) {
-      txt(`${Math.round(state.wT)} F`, 198, F.b12, C.orange);
-      txt(`${state.wText}  ${Math.round(state.wWind)} mph`, 222, F.f2, C.lgrey);
-    } else txt('weather...', 200, F.f2, C.dgrey);
+    const p = et(), h = +p.hour, sec = +p.second;
+    scr.shadowColor = '#0096ff'; scr.shadowBlur = 10;
+    txt(`${h % 12 || 12}:${p.minute}`, 108, F.huge, '#e1f2ff');
+    scr.shadowBlur = 0;
+    scr.fillStyle = '#232d3c'; scr.fillRect(50, 156, 140, 1);
+    scr.fillStyle = '#00afff'; scr.fillRect(50, 155, Math.round(140 * sec / 60), 3);
+    txt(h < 12 ? 'AM' : 'PM', 176, F.f2b, '#6e96c8');
+    txt(`${p.weekday}, ${MON[+p.month - 1]} ${+p.day}`, 214, F.f2b, '#afb2be');
   } else if (app === 'TXT Countdown') {
     txt(state.evn || 'TXT', 28, F.b12, C.purple);
     if (!/^\d{4}-\d\d-\d\dT\d\d:\d\d/.test(state.evt || '')) {
@@ -485,7 +497,7 @@ $('bQr').onclick = () => cmd({ cmd: 'qr' });
 $('bWifi').onclick = () => cmd({ cmd: 'wifi', ssid: $('ssid').value, pass: $('pass').value, euser: $('euser').value, eid: $('eid').value })
   .then(() => setStatus('Wi-Fi saved, connecting…', 'ok'));
 $('bCfg').onclick = () => cmd({ cmd: 'cfg', evn: $('evn').value, evt: $('evt').value, url: $('url').value,
-  lat: parseFloat($('lat').value), lon: parseFloat($('lon').value), rot: parseInt($('rot').value) });
+  lat: parseFloat($('lat').value), lon: parseFloat($('lon').value), rot: parseInt($('rot').value), fx: parseInt($('fx').value) });
 </script>
 </body>
 </html>

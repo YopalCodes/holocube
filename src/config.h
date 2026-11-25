@@ -39,6 +39,8 @@
 #define BOB_MAX_TILT_DEG 18.0f   // ignore bobs while tilted
 
 #define QR_SHOW_MS       20000
+#define CLOCK_FX         1       // seasonal particles behind the clock (0 = off)
+#define CLOCK_TILT_SIGN  1       // -1 if clock particles slide the wrong way when you tilt
 #define DEFAULT_URL      "https://yopalcodes.github.io/holocube/"
 #define DEFAULT_LAT      35.7847f   // NC State
 #define DEFAULT_LON      -78.6821f

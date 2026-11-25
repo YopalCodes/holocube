@@ -79,6 +79,7 @@ enum Gesture { G_NONE, G_RIGHT, G_LEFT, G_PICKUP };
 bool imuBegin();                 // also starts the 100 Hz IMU task
 Gesture imuNextGesture();        // non-blocking; G_NONE if nothing new
 void imuSetStream(bool on);      // raw stream for calibration; auto-expires 3 s after last refresh
+float imuRollDeg();             // filtered roll in degrees (+ = tilted right), for effects
 
 // ---------- GIF ----------
 void gifReload();

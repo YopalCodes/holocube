@@ -45,6 +45,18 @@ GIFs (and PNG/JPG/WebP images) are cropped to 240×240 and re-encoded **in the b
 
 After a switch you must return within 12° of level before the next one can fire, plus a 500 ms cooldown. Tune everything in `src/config.h`. If left and right are swapped, set `IMU_ROLL_SIGN -1`. If roll uses the wrong axis, change `IMU_ROLL_AXIS`. To see live values while tuning, uncomment the debug `printf` in `src/imu.cpp`.
 
+## Clock screen
+
+Weather icon and temperature along the top, a big glowing time in the middle (the colon pulses each second and a thin bar sweeps through the minute), and the date at the bottom.
+
+Behind it is a seasonal background:
+- **Winter:** swinging ornaments, with sparkles, or snow that piles up at the bottom and slowly melts.
+- **Spring:** petals.
+- **Summer:** fireflies.
+- **Fall:** leaves.
+
+Live weather overrides the season: snow appears only when it's actually snowing, and rain when it's raining. Particles fall toward real gravity, so tilting the cube makes them drift. Pick **Clock background** on the control page to force one style or turn it off. In `src/config.h`, set `CLOCK_FX 0` to disable the background, or `CLOCK_TILT_SIGN -1` if particles drift the wrong way.
+
 ## Beam splitter
 
 The reflection is a mirror image. Pick one of the "mirrored" orientations (4–7) on the control page until text reads correctly through the cube.

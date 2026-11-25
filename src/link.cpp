@@ -54,6 +54,7 @@ static String stateJson() {
   d["ssid"] = prefs.getString("ssid", "");
   d["mac"] = WiFi.macAddress();
   d["rot"] = prefs.getUChar("rot", DEFAULT_ROT);
+  d["fx"] = prefs.getUChar("fx", 0);
   d["url"] = prefs.getString("url", DEFAULT_URL);
   d["lat"] = prefs.getFloat("lat", DEFAULT_LAT);
   d["lon"] = prefs.getFloat("lon", DEFAULT_LON);
@@ -64,6 +65,7 @@ static String stateJson() {
     d["wT"] = weather.tempF;
     d["wWind"] = weather.windMph;
     d["wText"] = weatherText(weather.code);
+    d["wCode"] = weather.code;
   }
   d["gif"] = LittleFS.exists(GIF_PATH) ? (int)LittleFS.open(GIF_PATH).size() : 0;
   d["fsTotal"] = (int)LittleFS.totalBytes();
@@ -109,6 +111,7 @@ static void handle(Port p, String& line) {
     if (d["url"].is<const char*>()) prefs.putString("url", d["url"].as<const char*>());
     if (d["evn"].is<const char*>()) prefs.putString("evn", d["evn"].as<const char*>());
     if (d["evt"].is<const char*>()) prefs.putString("evt", d["evt"].as<const char*>());
+    if (d["fx"].is<int>()) prefs.putUChar("fx", d["fx"].as<int>() & 7);
     if (d["rot"].is<int>()) { prefs.putUChar("rot", d["rot"].as<int>() & 7); setRotationCfg(d["rot"].as<int>()); }
     APPS[activeApp()]->forceRedraw();
     send(p, stateJson());
