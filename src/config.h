@@ -14,6 +14,7 @@
 #define LCD_OFFSET_Y 0
 #define LCD_INVERT true // most ST7789VW IPS panels need inversion; flip if colours look negative
 #define LCD_SPI_HZ 80000000
+#define DEFAULT_ROT 1   // 0-3 = 0/90/180/270 deg clockwise, 4-7 = mirrored; the control page setting overrides this
 
 // MPU6050 (I2C)
 #define IMU_SDA    8    // D9
@@ -25,7 +26,7 @@
 #define IMU_ROLL_AXIS 1
 #define IMU_UP_AXIS   2
 #define IMU_UP_SIGN   1   // -1 if the IMU is mounted upside down
-#define IMU_ROLL_SIGN 1   // set -1 if left/right are swapped
+#define IMU_ROLL_SIGN -1  // set -1 if left/right are swapped
 
 // Gesture tuning
 #define ROLL_TRIGGER_DEG 32.0f   // tilt needed to switch apps

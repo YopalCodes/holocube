@@ -43,7 +43,7 @@ GIFs (and PNG/JPG/WebP images) are cropped to 240×240 and re-encoded **in the b
 | Roll left | Previous app |
 | Two quick up/down bobs while level | Show QR code for the control page (20 s) |
 
-After a switch you must return within 12° of level before the next one can fire, plus a 500 ms cooldown. Tune everything in `src/config.h`. If left and right are swapped, set `IMU_ROLL_SIGN -1`. If roll uses the wrong axis, change `IMU_ROLL_AXIS`. To see live values while tuning, uncomment the debug `printf` in `src/imu.cpp`.
+After a switch you must return within 12° of level before the next one can fire, plus a 500 ms cooldown. Tune everything in `src/config.h`. If left and right are swapped, flip the sign of `IMU_ROLL_SIGN` (currently -1). If roll uses the wrong axis, change `IMU_ROLL_AXIS`. To see live values while tuning, uncomment the debug `printf` in `src/imu.cpp`.
 
 ## Beam splitter
 

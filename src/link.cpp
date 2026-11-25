@@ -53,7 +53,7 @@ static String stateJson() {
   d["wifi"] = wifiStatus();
   d["ssid"] = prefs.getString("ssid", "");
   d["mac"] = WiFi.macAddress();
-  d["rot"] = prefs.getUChar("rot", 0);
+  d["rot"] = prefs.getUChar("rot", DEFAULT_ROT);
   d["url"] = prefs.getString("url", DEFAULT_URL);
   d["lat"] = prefs.getFloat("lat", DEFAULT_LAT);
   d["lon"] = prefs.getFloat("lon", DEFAULT_LON);

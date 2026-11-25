@@ -65,7 +65,7 @@ void setup() {
   prefs.begin("cube", false);
   lcd.init();
   lcd.setBrightness(255);
-  setRotationCfg(prefs.getUChar("rot", 0));
+  setRotationCfg(prefs.getUChar("rot", DEFAULT_ROT));
   lcd.fillScreen(TFT_BLACK);
   lcd.setTextDatum(textdatum_t::middle_center);
   lcd.drawString("HoloCube", lcd.width() / 2, lcd.height() / 2, &fonts::FreeSansBold12pt7b);
