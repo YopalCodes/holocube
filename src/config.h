@@ -35,9 +35,9 @@
 #define GESTURE_COOLDOWN 500
 // QR gesture: tilt toward you, back to level, toward you again (the same direction twice).
 #define IMU_PITCH_AXIS   1       // the forward/back tilt axis (the one roll doesn't use)
-#define PITCH_TRIGGER_DEG 20.0f  // how far each "toward" tilt must go
-#define PITCH_LEVEL_DEG   8.0f   // "back" = return within this of level
-#define PITCH_STEP_MS     500    // max time from leaving the first tilt to reaching the second
+#define PITCH_TRIGGER_DEG 13.0f  // how far each "toward" tilt must go
+#define PITCH_LEVEL_DEG   9.0f   // "back" = return within this of level
+#define PITCH_STEP_MS     700    // max time from leaving the first tilt to reaching the second
 #define PITCH_MAX_ROLL_DEG 18.0f // ignored while tilted sideways
 
 #define QR_SHOW_MS       20000

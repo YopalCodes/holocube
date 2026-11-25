@@ -141,7 +141,6 @@ static Gesture imuPoll(uint32_t now) {
     case 0: if (pdir) { nodStage = 1; nodDir = pdir; } break;                  // first tilt (either way)
     case 1:
       if (fabsf(pitchF) < PITCH_LEVEL_DEG) { nodStage = 2; nodAt = now; }     // came back
-      else if (pdir == -nodDir) nodStage = 0;
       break;
     case 2:
       if (now - nodAt > PITCH_STEP_MS) { nodStage = pdir ? 1 : 0; nodDir = pdir ? pdir : nodDir; nodAt = now; }  // too slow
@@ -149,7 +148,7 @@ static Gesture imuPoll(uint32_t now) {
         nodStage = 0;
         cooldownUntil = now + GESTURE_COOLDOWN * 2;
         return G_PICKUP;
-      } else if (pdir == -nodDir) nodStage = 0;
+      }
       break;
   }
   return G_NONE;
