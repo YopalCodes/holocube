@@ -60,6 +60,8 @@ static String stateJson() {
   d["lon"] = prefs.getFloat("lon", DEFAULT_LON);
   d["evn"] = prefs.getString("evn", "TXT");
   d["evt"] = prefs.getString("evt", "");
+  d["art"] = prefs.getString("art", "");
+  d["artSt"] = concertStatus();
   d["timeOk"] = timeValid();
   if (weather.ok) {
     d["wT"] = weather.tempF;
@@ -111,6 +113,7 @@ static void handle(Port p, String& line) {
     if (d["url"].is<const char*>()) prefs.putString("url", d["url"].as<const char*>());
     if (d["evn"].is<const char*>()) prefs.putString("evn", d["evn"].as<const char*>());
     if (d["evt"].is<const char*>()) prefs.putString("evt", d["evt"].as<const char*>());
+    if (d["art"].is<const char*>()) { prefs.putString("art", d["art"].as<const char*>()); concertRefresh(); }
     if (d["fx"].is<int>()) prefs.putUChar("fx", d["fx"].as<int>() & 7);
     if (d["rot"].is<int>()) { prefs.putUChar("rot", d["rot"].as<int>() & 7); setRotationCfg(d["rot"].as<int>()); }
     APPS[activeApp()]->forceRedraw();

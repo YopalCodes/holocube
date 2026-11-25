@@ -1,6 +1,7 @@
 // Wi-Fi (WPA2-PSK or optional WPA2-Enterprise PEAP), NTP, Open-Meteo weather (no API key)
 #include <WiFi.h>
 #include <HTTPClient.h>
+#include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
 #include "core.h"
 
@@ -63,9 +64,73 @@ static void fetchWeather() {
   http.end();
 }
 
+// ---- Auto concert dates: pick the next show for the tracked artist (pref "art") ----
+static volatile bool concertReq = true;
+static const char* volatile cStatus = "";
+void concertRefresh() { concertReq = true; }
+const char* concertStatus() { return cStatus; }
+
+static time_t etEpoch(const char* s) {   // "YYYY-MM-DDTHH:MM" in Eastern (the device TZ)
+  struct tm tm = {};
+  if (sscanf(s, "%d-%d-%dT%d:%d", &tm.tm_year, &tm.tm_mon, &tm.tm_mday, &tm.tm_hour, &tm.tm_min) != 5) return 0;
+  tm.tm_year -= 1900; tm.tm_mon -= 1; tm.tm_isdst = -1;
+  return mktime(&tm);
+}
+
+static bool fetchConcert() {   // returns false on a network error (retry soon)
+  String art = prefs.getString("art", "");
+  if (!art.length()) { cStatus = ""; return true; }
+  if (!*cStatus) cStatus = prefs.getString("evt", "").length() ? "" : "Looking up concert dates";
+  WiFiClientSecure tls;
+  tls.setInsecure();   // public, non-secret data; skips certificate pinning
+  HTTPClient http;
+  http.setTimeout(10000);
+  if (!http.begin(tls, String(CONCERTS_BASE) + art + ".json")) { cStatus = "Can't reach the concert list"; return false; }
+  int code = http.GET();
+  bool ok = code == 200 || code == 404;
+  if (code == 200) {
+    JsonDocument doc;
+    if (deserializeJson(doc, http.getString())) ok = false;
+    else {
+      time_t now = time(nullptr);
+      const char* artist = doc["artist"] | "";
+      String evt, evn = artist;
+      for (JsonObject e : doc["events"].as<JsonArray>()) {
+        const char* et = e["et"] | "";
+        time_t t = etEpoch(et);
+        if (t && t > now - 6 * 3600) {   // show "SHOW TIME!" for 6 h, then move on
+          evt = et;
+          const char* city = e["city"] | "";
+          if (*city && strlen(artist) + strlen(city) + 3 <= 20) evn = String(artist) + " - " + city;
+          break;
+        }
+      }
+      if (evt != prefs.getString("evt", "") || evn != prefs.getString("evn", "")) {
+        prefs.putString("evt", evt);
+        prefs.putString("evn", evn);
+        Serial.printf("Concert: %s %s\n", evn.c_str(), evt.length() ? evt.c_str() : "(none announced)");
+        linkBroadcastState();
+      }
+      cStatus = evt.length() ? "" : "No dates announced yet";
+    }
+  } else if (code == 404) {
+    cStatus = "Artist isn't in the concert list";
+  }
+  if (!ok) cStatus = prefs.getString("evt", "").length() ? "" : "Can't reach the concert list";
+  http.end();
+  return ok;
+}
+
 static void netTask(void*) {
-  uint32_t last = 0;
+  uint32_t last = 0, lastConcert = 0;
+  bool concertOk = false;
   for (;;) {
+    if (WiFi.isConnected() && timeValid() &&
+        (concertReq || millis() - lastConcert > (concertOk ? 60 * 60 * 1000UL : 2 * 60 * 1000UL))) {
+      concertReq = false;
+      concertOk = fetchConcert();
+      lastConcert = millis();
+    }
     if (WiFi.isConnected() && (!weather.ok || millis() - last > 15 * 60 * 1000UL)) {
       fetchWeather();
       last = millis();
@@ -87,5 +152,5 @@ void netBegin() {
     linkBroadcastState();
   }, ARDUINO_EVENT_WIFI_STA_GOT_IP);
   netReconnect();
-  xTaskCreate(netTask, "net", 8192, nullptr, 1, nullptr);
+  xTaskCreate(netTask, "net", 12288, nullptr, 1, nullptr);   // TLS needs the extra stack
 }

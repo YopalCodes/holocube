@@ -32,8 +32,14 @@ struct CountdownApp : App {
     struct tm tm = {};
     if (evt.length() < 16 || sscanf(evt.c_str(), "%d-%d-%dT%d:%d", &tm.tm_year, &tm.tm_mon, &tm.tm_mday,
                                     &tm.tm_hour, &tm.tm_min) != 5) {
-      centerText(c, "Set concert date", h / 2, &fonts::Font4, TFT_LIGHTGREY);
-      centerText(c, "on the control page", h / 2 + 26, &fonts::Font2, TFT_DARKGREY);
+      if (prefs.getString("art", "").length()) {   // tracking an artist, but no upcoming show (yet)
+        const char* st = concertStatus();
+        centerText(c, *st ? st : "No dates announced yet", h / 2, &fonts::Font2, TFT_LIGHTGREY);
+        centerText(c, "Checks for new dates every hour", h / 2 + 22, &fonts::Font2, TFT_DARKGREY);
+      } else {
+        centerText(c, "Set concert date", h / 2, &fonts::Font4, TFT_LIGHTGREY);
+        centerText(c, "on the control page", h / 2 + 26, &fonts::Font2, TFT_DARKGREY);
+      }
       return true;
     }
     if (!timeValid()) { centerText(c, "Waiting for time sync", h / 2, &fonts::Font2, TFT_DARKGREY); return true; }

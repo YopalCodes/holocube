@@ -1,0 +1,6 @@
+{
+  "_help": "Shows the APIs miss (Korea/Japan dates, fan meetings). Key = artist slug from artists.json. et = start time in US Eastern, YYYY-MM-DDTHH:MM. Past entries are dropped automatically.",
+  "example-slug": [
+    {"et": "2027-01-15T05:00", "city": "Seoul", "venue": "KSPO Dome"}
+  ]
+}

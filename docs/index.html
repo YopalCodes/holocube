@@ -120,8 +120,11 @@
     <div class="card">
       <h2>Settings</h2>
       <div class="grid">
-        <div><label>Countdown title</label><input id="evn"></div>
-        <div><label>Concert time (Eastern)</label><input id="evt" type="datetime-local"></div>
+        <div style="grid-column:1/-1"><label>Count down to</label>
+          <select id="art"><option value="">A date I type in myself</option></select>
+          <div id="artNext" class="mut" style="margin-top:4px"></div></div>
+        <div class="manual"><label>Countdown title</label><input id="evn"></div>
+        <div class="manual"><label>Concert time (Eastern)</label><input id="evt" type="datetime-local"></div>
         <div><label>Weather latitude</label><input id="lat" type="number" step="0.0001"></div>
         <div><label>Weather longitude</label><input id="lon" type="number" step="0.0001"></div>
         <div><label>Display orientation</label>
@@ -228,7 +231,7 @@ function render(s) {
   $('mac').textContent = s.mac; $('wifiSt').textContent = `· ${s.wifi}`;
   if (!formFilled) {
     formFilled = true;
-    $('ssid').value = s.ssid; $('evn').value = s.evn; $('evt').value = s.evt;
+    $('ssid').value = s.ssid; $('evn').value = s.evn; $('evt').value = s.evt; setArt(s.art || '');
     $('lat').value = s.lat.toFixed(4); $('lon').value = s.lon.toFixed(4); $('rot').value = s.rot; $('fx').value = s.fx ?? 0;
     $('url').value = s.url.includes('YOUR-GITHUB-USERNAME') || !s.url ? location.href.split('#')[0] : s.url;
   }
@@ -236,6 +239,7 @@ function render(s) {
   $('bGifDel').disabled = !s.gif;
   renderStorage();
   drawPreview();
+  if ($('art').value === (s.art || '')) artChanged();   // refresh the device's lookup status
 }
 
 // ---- Storage meter + upload safety check (the device enforces the same rule) ----
@@ -496,7 +500,43 @@ $('bUsb').onclick = () => navigator.serial ? connect(serialLink) : setStatus('We
 $('bQr').onclick = () => cmd({ cmd: 'qr' });
 $('bWifi').onclick = () => cmd({ cmd: 'wifi', ssid: $('ssid').value, pass: $('pass').value, euser: $('euser').value, eid: $('eid').value })
   .then(() => setStatus('Wi-Fi saved, connecting…', 'ok'));
-$('bCfg').onclick = () => cmd({ cmd: 'cfg', evn: $('evn').value, evt: $('evt').value, url: $('url').value,
+// ---- Auto concert dates (built daily by .github/workflows/concerts.yml from Ticketmaster) ----
+const CONCERTS = 'https://raw.githubusercontent.com/YopalCodes/holocube/main/docs/concerts/';
+let concertIdx = null, wantArt = null;
+const artists = () => concertIdx ? Object.values(concertIdx.labels).flat() : [];
+const fmtDay = et => `${MON[+et.slice(5, 7) - 1]} ${+et.slice(8, 10)}, ${et.slice(0, 4)}`;
+function fmtTime(et) { const h = +et.slice(11, 13); return `${h % 12 || 12}:${et.slice(14, 16)} ${h < 12 ? 'AM' : 'PM'}`; }
+function setArt(slug) {
+  wantArt = slug;
+  if (slug && !artists().some(a => a.slug === slug)) return;   // list not loaded yet; fillArtists applies it
+  $('art').value = slug; artChanged();
+}
+function fillArtists() {
+  for (const [label, list] of Object.entries(concertIdx.labels)) {
+    const g = document.createElement('optgroup'); g.label = label;
+    for (const a of list) g.append(new Option(a.next ? `${a.short} · next ${fmtDay(a.next.et)}` : `${a.short} · no dates yet`, a.slug));
+    $('art').append(g);
+  }
+  if (wantArt != null) setArt(wantArt);
+}
+function artChanged() {
+  const slug = $('art').value;
+  document.querySelectorAll('.manual').forEach(e => e.classList.toggle('hide', !!slug));
+  if (!slug || !concertIdx) { $('artNext').textContent = ''; return; }
+  const a = artists().find(a => a.slug === slug), n = a && a.next;
+  let msg = n ? `Next show: ${fmtDay(n.et)}, ${fmtTime(n.et)} ET · ${[n.city, n.venue].filter(Boolean).join(', ')}. `
+                + `That's in ${Math.max(0, Math.ceil((etToEpoch(n.et) - Date.now()) / 864e5))} days.`
+              : 'No dates announced yet. The cube checks every hour and switches over by itself.';
+  if (state && state.art === slug && state.artSt) msg += ` Cube: ${state.artSt}.`;
+  if (concertIdx.source !== 'Ticketmaster') msg += ' (Ticketmaster isn\'t connected yet, so only hand-added dates appear.)';
+  $('artNext').textContent = msg;
+}
+$('art').onchange = artChanged;
+fetch(CONCERTS + 'index.json', { cache: 'no-store' }).then(r => r.json())
+  .then(ix => { concertIdx = ix; fillArtists(); })
+  .catch(() => { $('artNext').textContent = "Couldn't load the concert list."; });
+
+$('bCfg').onclick = () => cmd({ cmd: 'cfg', art: $('art').value, ...($('art').value ? {} : { evn: $('evn').value, evt: $('evt').value }), url: $('url').value,
   lat: parseFloat($('lat').value), lon: parseFloat($('lon').value), rot: parseInt($('rot').value), fx: parseInt($('fx').value) });
 </script>
 </body>

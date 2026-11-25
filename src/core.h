@@ -68,6 +68,8 @@ void netReconnect();
 bool timeValid();
 String wifiStatus();
 const char* weatherText(int code);
+void concertRefresh();        // re-download the tracked artist's dates (pref "art") soon
+const char* concertStatus();  // "" when fine, else a short message for the countdown screen
 
 // ---------- Link (USB serial + BLE) ----------
 void linkBegin();

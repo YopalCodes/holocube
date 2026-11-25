@@ -1,0 +1,32 @@
+{
+  "_help": "Artists the concert list tracks. slug = file name (lowercase, no spaces). short = what the cube shows. name = exact artist name on Ticketmaster. Add or remove freely.",
+  "labels": {
+    "HYBE": [
+      {"slug": "bts", "short": "BTS", "name": "BTS"},
+      {"slug": "txt", "short": "TXT", "name": "TOMORROW X TOGETHER"},
+      {"slug": "seventeen", "short": "SEVENTEEN", "name": "SEVENTEEN"},
+      {"slug": "enhypen", "short": "ENHYPEN", "name": "ENHYPEN"},
+      {"slug": "lesserafim", "short": "LE SSERAFIM", "name": "LE SSERAFIM"},
+      {"slug": "illit", "short": "ILLIT", "name": "ILLIT"},
+      {"slug": "boynextdoor", "short": "BOYNEXTDOOR", "name": "BOYNEXTDOOR"},
+      {"slug": "tws", "short": "TWS", "name": "TWS"},
+      {"slug": "katseye", "short": "KATSEYE", "name": "KATSEYE"},
+      {"slug": "andteam", "short": "&TEAM", "name": "&TEAM"}
+    ],
+    "JYP": [
+      {"slug": "twice", "short": "TWICE", "name": "TWICE"},
+      {"slug": "straykids", "short": "Stray Kids", "name": "Stray Kids"},
+      {"slug": "itzy", "short": "ITZY", "name": "ITZY"},
+      {"slug": "nmixx", "short": "NMIXX", "name": "NMIXX"},
+      {"slug": "day6", "short": "DAY6", "name": "DAY6"},
+      {"slug": "xdinaryheroes", "short": "Xdinary Heroes", "name": "Xdinary Heroes"},
+      {"slug": "niziu", "short": "NiziU", "name": "NiziU"},
+      {"slug": "kickflip", "short": "KickFlip", "name": "KickFlip"}
+    ],
+    "YG": [
+      {"slug": "blackpink", "short": "BLACKPINK", "name": "BLACKPINK"},
+      {"slug": "babymonster", "short": "BABYMONSTER", "name": "BABYMONSTER"},
+      {"slug": "treasure", "short": "TREASURE", "name": "TREASURE"}
+    ]
+  }
+}

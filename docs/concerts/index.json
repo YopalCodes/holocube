@@ -1,0 +1,159 @@
+{
+ "updated": "2026-11-25T09:34Z",
+ "source": "manual only",
+ "labels": {
+  "HYBE": [
+   {
+    "slug": "bts",
+    "short": "BTS",
+    "name": "BTS",
+    "next": null,
+    "count": 0
+   },
+   {
+    "slug": "txt",
+    "short": "TXT",
+    "name": "TOMORROW X TOGETHER",
+    "next": null,
+    "count": 0
+   },
+   {
+    "slug": "seventeen",
+    "short": "SEVENTEEN",
+    "name": "SEVENTEEN",
+    "next": null,
+    "count": 0
+   },
+   {
+    "slug": "enhypen",
+    "short": "ENHYPEN",
+    "name": "ENHYPEN",
+    "next": null,
+    "count": 0
+   },
+   {
+    "slug": "lesserafim",
+    "short": "LE SSERAFIM",
+    "name": "LE SSERAFIM",
+    "next": null,
+    "count": 0
+   },
+   {
+    "slug": "illit",
+    "short": "ILLIT",
+    "name": "ILLIT",
+    "next": null,
+    "count": 0
+   },
+   {
+    "slug": "boynextdoor",
+    "short": "BOYNEXTDOOR",
+    "name": "BOYNEXTDOOR",
+    "next": null,
+    "count": 0
+   },
+   {
+    "slug": "tws",
+    "short": "TWS",
+    "name": "TWS",
+    "next": null,
+    "count": 0
+   },
+   {
+    "slug": "katseye",
+    "short": "KATSEYE",
+    "name": "KATSEYE",
+    "next": null,
+    "count": 0
+   },
+   {
+    "slug": "andteam",
+    "short": "&TEAM",
+    "name": "&TEAM",
+    "next": null,
+    "count": 0
+   }
+  ],
+  "JYP": [
+   {
+    "slug": "twice",
+    "short": "TWICE",
+    "name": "TWICE",
+    "next": null,
+    "count": 0
+   },
+   {
+    "slug": "straykids",
+    "short": "Stray Kids",
+    "name": "Stray Kids",
+    "next": null,
+    "count": 0
+   },
+   {
+    "slug": "itzy",
+    "short": "ITZY",
+    "name": "ITZY",
+    "next": null,
+    "count": 0
+   },
+   {
+    "slug": "nmixx",
+    "short": "NMIXX",
+    "name": "NMIXX",
+    "next": null,
+    "count": 0
+   },
+   {
+    "slug": "day6",
+    "short": "DAY6",
+    "name": "DAY6",
+    "next": null,
+    "count": 0
+   },
+   {
+    "slug": "xdinaryheroes",
+    "short": "Xdinary Heroes",
+    "name": "Xdinary Heroes",
+    "next": null,
+    "count": 0
+   },
+   {
+    "slug": "niziu",
+    "short": "NiziU",
+    "name": "NiziU",
+    "next": null,
+    "count": 0
+   },
+   {
+    "slug": "kickflip",
+    "short": "KickFlip",
+    "name": "KickFlip",
+    "next": null,
+    "count": 0
+   }
+  ],
+  "YG": [
+   {
+    "slug": "blackpink",
+    "short": "BLACKPINK",
+    "name": "BLACKPINK",
+    "next": null,
+    "count": 0
+   },
+   {
+    "slug": "babymonster",
+    "short": "BABYMONSTER",
+    "name": "BABYMONSTER",
+    "next": null,
+    "count": 0
+   },
+   {
+    "slug": "treasure",
+    "short": "TREASURE",
+    "name": "TREASURE",
+    "next": null,
+    "count": 0
+   }
+  ]
+ }
+}
