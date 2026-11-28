@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-28T08:33Z",
+ "updated": "2026-11-28T08:39Z",
  "source": "Bandsintown",
  "labels": {
   "HYBE": [
@@ -14,8 +14,12 @@
     "slug": "txt",
     "short": "TXT",
     "name": "TOMORROW X TOGETHER",
-    "next": null,
-    "count": 0
+    "next": {
+     "et": "2026-12-11T19:00",
+     "city": "New York",
+     "venue": "Madison Square Garden"
+    },
+    "count": 3
    },
    {
     "slug": "seventeen",
