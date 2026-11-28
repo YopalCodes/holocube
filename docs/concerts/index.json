@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-28T08:20Z",
+ "updated": "2026-11-28T08:33Z",
  "source": "Bandsintown",
  "labels": {
   "HYBE": [
@@ -14,12 +14,8 @@
     "slug": "txt",
     "short": "TXT",
     "name": "TOMORROW X TOGETHER",
-    "next": {
-     "et": "2026-12-11T19:00",
-     "city": "New York",
-     "venue": "Madison Square Garden"
-    },
-    "count": 9
+    "next": null,
+    "count": 0
    },
    {
     "slug": "seventeen",
@@ -90,8 +86,12 @@
     "slug": "straykids",
     "short": "Stray Kids",
     "name": "Stray Kids",
-    "next": null,
-    "count": 0
+    "next": {
+     "et": "2027-05-16T22:30",
+     "city": "Seattle",
+     "venue": "Lumen Field - Muckleshoot Plaza"
+    },
+    "count": 13
    },
    {
     "slug": "itzy",

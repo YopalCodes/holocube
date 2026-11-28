@@ -1,7 +1,99 @@
 {
- "updated": "2026-11-25T09:34Z",
+ "updated": "2026-11-28T08:33Z",
  "artist": "Stray Kids",
  "name": "Stray Kids",
  "label": "JYP",
- "events": []
+ "events": [
+  {
+   "et": "2027-05-16T22:30",
+   "city": "Seattle",
+   "country": "United States",
+   "venue": "Lumen Field - Muckleshoot Plaza",
+   "url": "https://www.bandsintown.com/e/1040861973-stray-kids-at-lumen-field-muckleshoot-plaza?came_from=251&utm_medium=web&utm_source=artist_page&utm_campaign=ticket_all_concerts"
+  },
+  {
+   "et": "2027-05-22T22:30",
+   "city": "Santa Clara",
+   "country": "United States",
+   "venue": "Levi's Stadium",
+   "url": "https://www.bandsintown.com/e/1040861920-stray-kids-at-levi's-stadium?came_from=251&utm_medium=web&utm_source=artist_page&utm_campaign=ticket_all_concerts"
+  },
+  {
+   "et": "2027-05-25T22:30",
+   "city": "San Diego",
+   "country": "United States",
+   "venue": "Petco Park",
+   "url": "https://www.bandsintown.com/e/1040862664-stray-kids-at-petco-park?came_from=251&utm_medium=web&utm_source=artist_page&utm_campaign=ticket_all_concerts"
+  },
+  {
+   "et": "2027-05-29T22:30",
+   "city": "Los Angeles",
+   "country": "United States",
+   "venue": "SoFi Stadium",
+   "url": "https://www.bandsintown.com/e/1040862204-stray-kids-at-sofi-stadium?came_from=251&utm_medium=web&utm_source=artist_page&utm_campaign=ticket_all_concerts"
+  },
+  {
+   "et": "2027-06-03T20:30",
+   "city": "Arlington",
+   "country": "United States",
+   "venue": "AT&T Stadium",
+   "url": "https://www.bandsintown.com/e/1040860139-stray-kids-at-atandt-stadium?came_from=251&utm_medium=web&utm_source=artist_page&utm_campaign=ticket_all_concerts"
+  },
+  {
+   "et": "2027-06-05T20:30",
+   "city": "Houston",
+   "country": "United States",
+   "venue": "Reliant Stadium",
+   "url": "https://www.bandsintown.com/e/1040862285-stray-kids-at-reliant-stadium?came_from=251&utm_medium=web&utm_source=artist_page&utm_campaign=ticket_all_concerts"
+  },
+  {
+   "et": "2027-06-08T19:30",
+   "city": "Atlanta",
+   "country": "United States",
+   "venue": "Mercedes Benz Stadium",
+   "url": "https://www.bandsintown.com/e/1040862540-stray-kids-at-mercedes-benz-stadium?came_from=251&utm_medium=web&utm_source=artist_page&utm_campaign=ticket_all_concerts"
+  },
+  {
+   "et": "2027-06-11T19:30",
+   "city": "Miami Gardens",
+   "country": "United States",
+   "venue": "Hard Rock Stadium",
+   "url": "https://www.bandsintown.com/e/1040862563-stray-kids-at-hard-rock-stadium?came_from=251&utm_medium=web&utm_source=artist_page&utm_campaign=ticket_all_concerts"
+  },
+  {
+   "et": "2027-06-14T19:30",
+   "city": "Orlando",
+   "country": "United States",
+   "venue": "Camping World Stadium",
+   "url": "https://www.bandsintown.com/e/1040861842-stray-kids-at-camping-world-stadium?came_from=251&utm_medium=web&utm_source=artist_page&utm_campaign=ticket_all_concerts"
+  },
+  {
+   "et": "2027-06-18T20:30",
+   "city": "Chicago",
+   "country": "United States",
+   "venue": "Soldier Field",
+   "url": "https://www.bandsintown.com/e/1040862366-stray-kids-at-soldier-field?came_from=251&utm_medium=web&utm_source=artist_page&utm_campaign=ticket_all_concerts"
+  },
+  {
+   "et": "2027-06-19T20:30",
+   "city": "Chicago",
+   "country": "United States",
+   "venue": "Soldier Field",
+   "url": "https://www.bandsintown.com/e/1040977975-stray-kids-at-soldier-field?came_from=251&utm_medium=web&utm_source=artist_page&utm_campaign=ticket_all_concerts"
+  },
+  {
+   "et": "2027-06-22T19:30",
+   "city": "Baltimore",
+   "country": "United States",
+   "venue": "M&T Bank Stadium",
+   "url": "https://www.bandsintown.com/e/1040862002-stray-kids-at-mandt-bank-stadium?came_from=251&utm_medium=web&utm_source=artist_page&utm_campaign=ticket_all_concerts"
+  },
+  {
+   "et": "2027-06-29T19:30",
+   "city": "New Jersey",
+   "country": "United States",
+   "venue": "MetLife Stadium",
+   "url": "https://www.bandsintown.com/e/1040862304-stray-kids-at-metlife-stadium?came_from=251&utm_medium=web&utm_source=artist_page&utm_campaign=ticket_all_concerts"
+  }
+ ]
 }

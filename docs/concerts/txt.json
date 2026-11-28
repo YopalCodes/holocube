@@ -1,71 +1,7 @@
 {
- "updated": "2026-11-28T08:20Z",
+ "updated": "2026-11-28T08:33Z",
  "artist": "TXT",
  "name": "TOMORROW X TOGETHER",
  "label": "HYBE",
- "events": [
-  {
-   "et": "2026-12-11T19:00",
-   "city": "New York",
-   "country": "United States",
-   "venue": "Madison Square Garden",
-   "url": "https://www.bandsintown.com/e/1040407012-tomorrow-x-together-at-madison-square-garden?came_from=251&utm_medium=web&utm_source=artist_page&utm_campaign=ticket_all_concerts"
-  },
-  {
-   "et": "2026-12-13T18:00",
-   "city": "Boston",
-   "country": "United States",
-   "venue": "TD Garden",
-   "url": "https://www.bandsintown.com/e/1040407349-tomorrow-x-together-at-td-garden?came_from=251&utm_medium=web&utm_source=artist_page&utm_campaign=ticket_all_concerts"
-  },
-  {
-   "et": "2026-12-14T19:30",
-   "city": "Washington",
-   "country": "United States",
-   "venue": "Capital One Arena",
-   "url": "https://www.bandsintown.com/e/1040407202-tomorrow-x-together-at-capital-one-arena?came_from=251&utm_medium=web&utm_source=artist_page&utm_campaign=ticket_all_concerts"
-  },
-  {
-   "et": "2026-12-20T19:00",
-   "city": "日本福岡市",
-   "country": "",
-   "venue": "みずほＰａｙＰａｙドーム福岡",
-   "url": "https://www.bandsintown.com/e/1040583544-tomorrow-x-together-at?came_from=251&utm_medium=web&utm_source=artist_page&utm_campaign=ticket_all_concerts"
-  },
-  {
-   "et": "2027-01-07T18:00",
-   "city": "日本文京区",
-   "country": "",
-   "venue": "東京ドーム",
-   "url": "https://www.bandsintown.com/e/1040849868-tomorrow-x-together-at?came_from=251&utm_medium=web&utm_source=artist_page&utm_campaign=ticket_all_concerts"
-  },
-  {
-   "et": "2027-01-08T18:00",
-   "city": "日本文京区",
-   "country": "",
-   "venue": "東京ドーム",
-   "url": "https://www.bandsintown.com/e/1040582563-tomorrow-x-together-at?came_from=251&utm_medium=web&utm_source=artist_page&utm_campaign=ticket_all_concerts"
-  },
-  {
-   "et": "2027-01-30T17:00",
-   "city": "日本大阪市",
-   "country": "",
-   "venue": "京セラドーム大阪",
-   "url": "https://www.bandsintown.com/e/1040848712-tomorrow-x-together-at?came_from=251&utm_medium=web&utm_source=artist_page&utm_campaign=ticket_all_concerts"
-  },
-  {
-   "et": "2027-01-31T19:00",
-   "city": "日本大阪市",
-   "country": "",
-   "venue": "京セラドーム大阪",
-   "url": "https://www.bandsintown.com/e/1040582914-tomorrow-x-together-at?came_from=251&utm_medium=web&utm_source=artist_page&utm_campaign=ticket_all_concerts"
-  },
-  {
-   "et": "2027-02-21T19:00",
-   "city": "日本名古屋市",
-   "country": "",
-   "venue": "バンテリンドームナゴヤ",
-   "url": "https://www.bandsintown.com/e/1040583591-tomorrow-x-together-at?came_from=251&utm_medium=web&utm_source=artist_page&utm_campaign=ticket_all_concerts"
-  }
- ]
+ "events": []
 }
