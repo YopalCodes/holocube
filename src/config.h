@@ -14,7 +14,13 @@
 #define LCD_OFFSET_Y 0
 #define LCD_INVERT true // most ST7789VW IPS panels need inversion; flip if colours look negative
 #define LCD_SPI_HZ 80000000
-#define DEFAULT_ROT 5   // 0-3 = 0/90/180/270 deg clockwise, 4-7 = mirrored; the control page setting overrides this
+// Default nudge to center the image under the cube, in pixels as seen through the cube
+// (+X = right, +Y = down). 1.30" panel: 23.40 mm / 240 px = 0.0975 mm per pixel (~10 px per mm).
+// Tune it live on the control page (Alignment); that value is saved on the device and overrides these.
+#define LCD_SHIFT_X 0
+#define LCD_SHIFT_Y 0
+#define LCD_SHIFT_MAX 60
+#define DEFAULT_ROT 5  // 0-3 = 0/90/180/270 deg clockwise, 4-7 = mirrored; the control page setting overrides this
 
 // MPU6050 (I2C)
 #define IMU_SDA    8    // D9

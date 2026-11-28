@@ -9,8 +9,35 @@ Preferences prefs;
 static int cur = 0;
 static uint32_t qrUntil = 0;
 static uint32_t lastDraw = 0;
+int shiftX = LCD_SHIFT_X, shiftY = LCD_SHIFT_Y;
 
 int activeApp() { return cur; }
+
+void setShift(int x, int y) {
+  shiftX = constrain(x, -LCD_SHIFT_MAX, LCD_SHIFT_MAX);
+  shiftY = constrain(y, -LCD_SHIFT_MAX, LCD_SHIFT_MAX);
+  prefs.putShort("sx", shiftX);
+  prefs.putShort("sy", shiftY);
+  showAlign();
+}
+
+void showAlign() {
+  qrUntil = millis() + QR_SHOW_MS;
+  int w = canvas.width(), h = canvas.height(), cx = w / 2, cy = h / 2;
+  canvas.fillScreen(TFT_BLACK);
+  for (int i = 0; i < 3; i++) canvas.drawRect(i, i, w - 2 * i, h - 2 * i, i ? TFT_DARKGREY : TFT_WHITE);
+  for (int r = 20; r <= 100; r += 20) canvas.drawCircle(cx, cy, r, r == 100 ? TFT_CYAN : 0x2945);
+  canvas.drawFastHLine(0, cy, w, TFT_RED);
+  canvas.drawFastVLine(cx, 0, h, TFT_RED);
+  canvas.setTextColor(TFT_YELLOW);
+  canvas.setTextDatum(textdatum_t::middle_center);
+  canvas.setFont(&fonts::Font2);
+  canvas.drawString("ALIGN", cx, cy - 34);
+  char s[32]; snprintf(s, sizeof s, "X %+d  Y %+d", shiftX, shiftY);
+  canvas.drawString(s, cx, cy + 34);
+  lcd.fillScreen(TFT_BLACK);   // clear the strip the shift exposes
+  canvas.pushSprite(shiftX, shiftY);
+}
 
 static void recreateCanvas() {
   canvas.deleteSprite();
@@ -51,7 +78,7 @@ void showQr() {
   canvas.drawString("Scan for control page", canvas.width() / 2, canvas.height() - 22);
   canvas.drawString(WiFi.isConnected() ? WiFi.localIP().toString() : "MAC " + WiFi.macAddress(),
                     canvas.width() / 2, canvas.height() - 4);
-  canvas.pushSprite(0, 0);
+  canvas.pushSprite(shiftX, shiftY);
   Serial.println("pickup -> QR");
 }
 
@@ -63,6 +90,8 @@ void setup() {
   // once the PC stops reading. 20 ms lets it give up quickly and drop output instead.
   Serial.setTxTimeoutMs(20);
   prefs.begin("cube", false);
+  shiftX = prefs.getShort("sx", LCD_SHIFT_X);
+  shiftY = prefs.getShort("sy", LCD_SHIFT_Y);
   lcd.init();
   lcd.setBrightness(255);
   setRotationCfg(prefs.getUChar("rot", DEFAULT_ROT));
@@ -103,6 +132,6 @@ void loop() {
   a->update(now);
   if (!a->direct() && now - lastDraw >= 33) {
     lastDraw = now;
-    if (a->draw(canvas)) canvas.pushSprite(0, 0);
+    if (a->draw(canvas)) canvas.pushSprite(shiftX, shiftY);
   }
 }

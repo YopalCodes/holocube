@@ -55,6 +55,8 @@ static String stateJson() {
   d["mac"] = WiFi.macAddress();
   d["rot"] = prefs.getUChar("rot", DEFAULT_ROT);
   d["fx"] = prefs.getUChar("fx", 0);
+  d["sx"] = shiftX;
+  d["sy"] = shiftY;
   d["url"] = prefs.getString("url", DEFAULT_URL);
   d["lat"] = prefs.getFloat("lat", DEFAULT_LAT);
   d["lon"] = prefs.getFloat("lon", DEFAULT_LON);
@@ -94,6 +96,12 @@ static void handle(Port p, String& line) {
   if (cmd == "info") { send(p, stateJson()); return; }
   if (cmd == "app") { switchApp(d["i"] | 0); send(p, stateJson()); return; }
   if (cmd == "qr") { showQr(); send(p, reply("ok", "qr")); return; }
+  if (cmd == "align") { showAlign(); send(p, reply("ok", "align")); return; }
+  if (cmd == "shift") {   // live nudge from the page; shows the alignment pattern
+    setShift(d["x"] | shiftX, d["y"] | shiftY);
+    send(p, stateJson());
+    return;
+  }
   if (cmd == "i2c_diag") { extern void imuDiag(); imuDiag(); return; }
   if (cmd == "imu_stream") { imuSetStream(d["on"] | false); return; }   // no reply: keeps the stream clean
 

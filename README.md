@@ -76,6 +76,8 @@ Ticketmaster covers shows sold through Ticketmaster and Live Nation, mostly in t
 
 The reflection is a mirror image. Pick one of the "mirrored" orientations (4–7) on the control page until text reads correctly through the cube.
 
+If the cube isn't centered over the active area, use **Alignment** on the control page. It shows a border and crosshair, and the arrow buttons move the whole image 1 pixel (about 0.1 mm) at a time. The value is saved on the device. The edge the image moves toward is cropped, and the opposite edge stays black. Directions are as seen through the cube, so with a rotated or mirrored orientation they won't match the panel's own axes. `LCD_SHIFT_X` / `LCD_SHIFT_Y` in `src/config.h` set the default before anything is saved.
+
 ## Adding an app
 
 ```cpp
@@ -90,7 +92,7 @@ Hooks: `begin()` (boot), `enter()`/`exit()`, `update(now)`, `draw(canvas)` (≤3
 
 ## Protocol (USB serial 115200 and BLE Nordic-UART, newline-delimited JSON)
 
-`{"cmd":"info"}` · `{"cmd":"app","i":1}` · `{"cmd":"qr"}` · `{"cmd":"wifi","ssid","pass","euser","eid"}` ·
+`{"cmd":"info"}` · `{"cmd":"app","i":1}` · `{"cmd":"qr"}` · `{"cmd":"align"}` · `{"cmd":"shift","x":14,"y":0}` · `{"cmd":"wifi","ssid","pass","euser","eid"}` ·
 `{"cmd":"cfg","lat","lon","rot","url","evn","evt":"2026-12-20T19:00"}` · `gif_begin{size}` → `gif_chunk{d:base64}`… → `gif_end`.
 The device replies with `state` / `ack` / `ok` / `err` objects. Log lines never start with `{`.
 

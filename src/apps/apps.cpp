@@ -66,7 +66,7 @@ static int gifX, gifY;
 static void gifDraw(GIFDRAW* p) {
   static uint16_t line[480];
   int w = min(p->iWidth, (int)min(lcd.width(), 480));
-  int y = gifY + p->iY + p->y;
+  int y = gifY + shiftY + p->iY + p->y;
   if (y < 0 || y >= lcd.height()) return;
   uint8_t* s = p->pPixels;
   uint16_t* pal = p->pPalette;
@@ -74,7 +74,7 @@ static void gifDraw(GIFDRAW* p) {
     for (int x = 0; x < w; x++) if (s[x] == p->ucTransparent) s[x] = p->ucBackground;
     p->ucHasTransparency = 0;
   }
-  int x0 = gifX + p->iX;
+  int x0 = gifX + shiftX + p->iX;
   if (!p->ucHasTransparency) {
     for (int x = 0; x < w; x++) line[x] = pal[s[x]];
     lcd.pushImage(x0, y, w, 1, line);

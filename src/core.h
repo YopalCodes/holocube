@@ -41,6 +41,8 @@ extern LGFX_Sprite canvas;   // full-screen PSRAM frame buffer for flicker-free 
 extern Preferences prefs;    // NVS, namespace "cube"
 
 void setRotationCfg(uint8_t r);  // 0-3 normal, 4-7 mirrored (for beam-splitter reflection)
+extern int shiftX, shiftY;       // image nudge in pixels (as seen through the cube), stored in NVS
+void setShift(int x, int y);     // saves and shows the alignment pattern
 
 // ---------- App framework ----------
 // To add an app: subclass App in src/apps/, then add it to the APPS list in apps.cpp.
@@ -59,6 +61,7 @@ extern const int APP_COUNT;
 int activeApp();
 void switchApp(int i);
 void showQr();
+void showAlign();   // border + crosshair for centering the image under the cube (QR_SHOW_MS)
 
 // ---------- Networking ----------
 struct Weather { bool ok; float tempF; float windMph; int code; uint32_t at; };

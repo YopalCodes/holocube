@@ -143,6 +143,21 @@
       </div>
       <button id="bCfg" style="margin-top:10px">Save settings</button>
     </div>
+
+    <div class="card">
+      <h2>Alignment</h2>
+      <p class="mut">Shows a border and crosshair on the cube. Nudge until the crosshair sits in the middle of the cube and all four border lines look equally close to its edges. Each step is 1 pixel (about 0.1 mm), and it's saved right away.</p>
+      <div style="display:grid;grid-template-columns:repeat(3,52px);gap:6px;justify-content:start;margin:10px 0">
+        <span></span><button id="nUp">↑</button><span></span>
+        <button id="nLeft">←</button><button id="bAlign" title="Show pattern">◎</button><button id="nRight">→</button>
+        <span></span><button id="nDown">↓</button><span></span>
+      </div>
+      <div class="grid">
+        <div><label>X shift (px, + = right)</label><input id="sx" type="number" step="1" min="-60" max="60"></div>
+        <div><label>Y shift (px, + = down)</label><input id="sy" type="number" step="1" min="-60" max="60"></div>
+      </div>
+      <button id="bShift" style="margin-top:10px">Apply</button>
+    </div>
   </div>
 </main>
 
@@ -229,6 +244,7 @@ function render(s) {
     $('apps').appendChild(b);
   });
   $('mac').textContent = s.mac; $('wifiSt').textContent = `· ${s.wifi}`;
+  $('sx').value = s.sx ?? 0; $('sy').value = s.sy ?? 0;
   if (!formFilled) {
     formFilled = true;
     $('ssid').value = s.ssid; $('evn').value = s.evn; $('evt').value = s.evt; setArt(s.art || '');
@@ -535,6 +551,13 @@ $('art').onchange = artChanged;
 fetch(CONCERTS + 'index.json', { cache: 'no-store' }).then(r => r.json())
   .then(ix => { concertIdx = ix; fillArtists(); })
   .catch(() => { $('artNext').textContent = "Couldn't load the concert list."; });
+
+const shift = (x, y) => cmd({ cmd: 'shift', x, y });
+const nudge = (dx, dy) => shift((state?.sx ?? 0) + dx, (state?.sy ?? 0) + dy);
+$('nLeft').onclick = () => nudge(-1, 0); $('nRight').onclick = () => nudge(1, 0);
+$('nUp').onclick = () => nudge(0, -1);   $('nDown').onclick = () => nudge(0, 1);
+$('bAlign').onclick = () => cmd({ cmd: 'align' });
+$('bShift').onclick = () => shift(parseInt($('sx').value) || 0, parseInt($('sy').value) || 0);
 
 $('bCfg').onclick = () => cmd({ cmd: 'cfg', art: $('art').value, ...($('art').value ? {} : { evn: $('evn').value, evt: $('evt').value }), url: $('url').value,
   lat: parseFloat($('lat').value), lon: parseFloat($('lon').value), rot: parseInt($('rot').value), fx: parseInt($('fx').value) });
