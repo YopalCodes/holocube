@@ -29,6 +29,7 @@ ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "docs" / "concerts"
 KEY = os.environ.get("TM_API_KEY", "").strip()
 APIFY = os.environ.get("APIFY_TOKEN", "").strip()
+APIFY_TASK = os.environ.get("APIFY_TASK", "").strip()   # a saved Apify task to run instead of the actor below
 APIFY_ACTOR = "https://api.apify.com/v2/acts/solidcode~bandsintown-scraper/run-sync-get-dataset-items"
 API = "https://app.ticketmaster.com/discovery/v2/"
 UA = {"User-Agent": "holocube-concerts/1.0"}
@@ -115,23 +116,50 @@ def city_tz(city, country):
     return tz
 
 
+def _get(d, *paths):
+    """First non-empty value among dotted paths, e.g. _get(row, "venueCity", "venue.city")."""
+    for p in paths:
+        v = d
+        for k in p.split("."):
+            v = v.get(k) if isinstance(v, dict) else None
+        if v not in (None, "", []):
+            return v
+    return None
+
+
 def bandsintown_events(artists):
-    """One Apify run for all opted-in artists. Returns {artist slug: [events]}; raises on failure."""
-    body =json.dumps({"artists": [a["name"] for a in artists], "queryType": "events",
-                       "dateFilter": "upcoming", "includeEventDetails": False, "maxResults": 60 * len(artists)})
-    req = urllib.request.Request(APIFY_ACTOR + "?timeout=280", data=body.encode(), method="POST",
-                                 headers={**UA, "Content-Type": "application/json", "Authorization": f"Bearer {APIFY}"})
+    """One Apify run for all opted-in artists. Returns {artist slug: [events]}; raises on failure.
+
+    With APIFY_TASK set, runs that saved Apify task with its own input; otherwise calls the
+    solidcode/bandsintown-scraper actor with the opted-in artists."""
+    auth = {**UA, "Authorization": f"Bearer {APIFY}"}
+    if APIFY_TASK:
+        base = f"https://api.apify.com/v2/actor-tasks/{APIFY_TASK}"
+        req = urllib.request.Request(base + "/run-sync-get-dataset-items?timeout=280", data=b"", method="POST", headers=auth)
+    else:
+        base = APIFY_ACTOR.rsplit("/", 1)[0]
+        body = json.dumps({"artists": [a["name"] for a in artists], "queryType": "events",
+                           "dateFilter": "upcoming", "includeEventDetails": False, "maxResults": 60 * len(artists)})
+        req = urllib.request.Request(APIFY_ACTOR + "?timeout=280", data=body.encode(), method="POST",
+                                     headers={**auth, "Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=300) as r:
         rows = json.load(r)
+
+    def artist_of(row):
+        lineup = row.get("lineup") or []
+        return _get(row, "artistName", "artist.name", "artist", "artist_name") or (lineup[0] if lineup and isinstance(lineup[0], str) else None)
+
     names = {}
     for row in rows:
-        n = row.get("artistName") or row.get("name") or "?"
+        n = str(artist_of(row) or "?")
         names[n] = names.get(n, 0) + 1
-    print(f"  Bandsintown returned {len(rows)} row(s): " + ", ".join(f"{n} x{c}" for n, c in names.items()))
+    print(f"  Bandsintown ({'task ' + APIFY_TASK if APIFY_TASK else 'actor'}) returned {len(rows)} row(s): "
+          + ", ".join(f"{n} x{c}" for n, c in names.items()))
+    if rows:
+        print(f"  first row fields: {sorted(rows[0].keys())}")
     if not rows:   # show why: the actor's own run status and log tail
         try:
-            base = APIFY_ACTOR.rsplit("/", 1)[0] + "/runs/last"
-            auth = {**UA, "Authorization": f"Bearer {APIFY}"}
+            base = base + "/runs/last"
             with urllib.request.urlopen(urllib.request.Request(base, headers=auth), timeout=30) as r:
                 run = json.load(r).get("data", {})
             print(f"  Apify run status: {run.get('status')} {run.get('statusMessage') or ''}")
@@ -150,21 +178,32 @@ def bandsintown_events(artists):
                 return a["slug"]
         return None
 
+    only = artists[0]["slug"] if len(artists) == 1 else None   # rows without an artist name belong to it
     out = {a["slug"]: [] for a in artists}
     for row in rows:
-        slug = match(row.get("artistName"))
-        local = row.get("datetime")
+        name = artist_of(row)
+        slug = match(str(name)) if name else only
+        local = _get(row, "datetime", "starts_at", "startsAt", "startDate", "date")
         if row.get("recordType") not in (None, "event") or not slug or not local:
             continue
-        city, country = row.get("venueCity") or "", row.get("venueCountry") or ""
-        tz = city_tz(city, country)
-        if not tz:
-            print(f"  {slug}: no time zone for {city}, {country}; assuming Eastern", file=sys.stderr)
-        t = datetime.fromisoformat(local[:19]).replace(tzinfo=ZoneInfo(tz) if tz else ET).astimezone(ET)
+        city = _get(row, "venueCity", "venue.city", "city") or ""
+        country = _get(row, "venueCountry", "venue.country", "country") or ""
+        try:
+            local_dt = datetime.fromisoformat(str(local).replace("Z", "+00:00")[:25])
+        except ValueError:
+            print(f"  {slug}: can't read date {local!r}", file=sys.stderr)
+            continue
+        if local_dt.tzinfo is None:   # Bandsintown gives venue-local time without a zone
+            tz = city_tz(city, country)
+            if not tz:
+                print(f"  {slug}: no time zone for {city}, {country}; assuming Eastern", file=sys.stderr)
+            local_dt = local_dt.replace(tzinfo=ZoneInfo(tz) if tz else ET)
+        if len(str(local)) <= 10:     # date only, no time: assume a 7 PM start
+            local_dt = local_dt.replace(hour=19)
         offers = row.get("offers") or []
-        out[slug].append({"et": t.strftime("%Y-%m-%dT%H:%M"), "city": city, "country": country,
-                          "venue": row.get("venueName") or "",
-                          "url": (offers[0].get("url") if offers else None) or row.get("url") or ""})
+        out[slug].append({"et": local_dt.astimezone(ET).strftime("%Y-%m-%dT%H:%M"), "city": city, "country": country,
+                          "venue": _get(row, "venueName", "venue.name") or (row["venue"] if isinstance(row.get("venue"), str) else ""),
+                          "url": (offers[0].get("url") if offers and isinstance(offers[0], dict) else None) or row.get("url") or ""})
     return out
 
 
