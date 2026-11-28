@@ -128,6 +128,17 @@ def bandsintown_events(artists):
         n = row.get("artistName") or row.get("name") or "?"
         names[n] = names.get(n, 0) + 1
     print(f"  Bandsintown returned {len(rows)} row(s): " + ", ".join(f"{n} x{c}" for n, c in names.items()))
+    if not rows:   # show why: the actor's own run status and log tail
+        try:
+            base = APIFY_ACTOR.rsplit("/", 1)[0] + "/runs/last"
+            auth = {**UA, "Authorization": f"Bearer {APIFY}"}
+            with urllib.request.urlopen(urllib.request.Request(base, headers=auth), timeout=30) as r:
+                run = json.load(r).get("data", {})
+            print(f"  Apify run status: {run.get('status')} {run.get('statusMessage') or ''}")
+            with urllib.request.urlopen(urllib.request.Request(base + "/log", headers=auth), timeout=30) as r:
+                print("  Apify log (last 40 lines):\n    " + "\n    ".join(r.read().decode("utf-8", "replace").splitlines()[-40:]))
+        except Exception as e:
+            print(f"  (couldn't read the Apify run log: {e})", file=sys.stderr)
 
     def match(name):   # Bandsintown spellings vary ("TXT", "TOMORROW X TOGETHER (투모로우바이투게더)")
         n = norm(name or "")
