@@ -544,7 +544,7 @@ function artChanged() {
                 + `That's in ${Math.max(0, Math.ceil((etToEpoch(n.et) - Date.now()) / 864e5))} days.`
               : 'No dates announced yet. The cube checks every hour and switches over by itself.';
   if (state && state.art === slug && state.artSt) msg += ` Cube: ${state.artSt}.`;
-  if (concertIdx.source !== 'Ticketmaster') msg += ' (Ticketmaster isn\'t connected yet, so only hand-added dates appear.)';
+  if (concertIdx.source === 'manual only') msg += ' (No concert source is connected yet, so only hand-added dates appear.)';
   $('artNext').textContent = msg;
 }
 $('art').onchange = artChanged;

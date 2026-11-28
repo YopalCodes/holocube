@@ -1,7 +1,13 @@
 """Builds docs/concerts/*.json: upcoming shows for every artist in concerts/artists.json.
 
-Source: Ticketmaster Discovery API (free key from developer.ticketmaster.com, set as env TM_API_KEY;
-in GitHub it's the repository secret of the same name). Entries in concerts/manual.json are merged in.
+Sources (all optional, merged; duplicates of the same show are dropped):
+  1. Bandsintown via the Apify actor solidcode/bandsintown-scraper, if env APIFY_TOKEN is set
+     (repository secret of the same name). Worldwide dates with exact local start times. It's billed
+     per event returned (~$1.20 per 1,000), so only artists marked "apify": true in artists.json are
+     looked up. Bandsintown times carry no time zone, so each city's zone comes from the free
+     Open-Meteo geocoder.
+  2. Ticketmaster Discovery API, if env TM_API_KEY is set.
+  3. concerts/manual.json, for shows the others miss.
 Runs daily from .github/workflows/concerts.yml. Standard library only.
 
 Output per artist (what the cube downloads):
@@ -22,7 +28,10 @@ except Exception:          # no tz database (e.g. Windows without tzdata): only 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "docs" / "concerts"
 KEY = os.environ.get("TM_API_KEY", "").strip()
+APIFY = os.environ.get("APIFY_TOKEN", "").strip()
+APIFY_ACTOR = "https://api.apify.com/v2/acts/solidcode~bandsintown-scraper/run-sync-get-dataset-items"
 API = "https://app.ticketmaster.com/discovery/v2/"
+UA = {"User-Agent": "holocube-concerts/1.0"}
 SKIP = re.compile(r"parking|upgrade|vip package|merch|shuttle|hotel|soundcheck experience", re.I)
 
 
@@ -83,6 +92,56 @@ def ticketmaster_events(artist):
     return events
 
 
+_tz_cache = {}
+
+
+def city_tz(city, country):
+    """IANA time zone for a city via the Open-Meteo geocoder (free, no key). None if unknown."""
+    key = (city, country)
+    if key in _tz_cache:
+        return _tz_cache[key]
+    tz = None
+    try:
+        url = "https://geocoding-api.open-meteo.com/v1/search?" + urllib.parse.urlencode(
+            {"name": city, "count": 10, "language": "en", "format": "json"})
+        with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=20) as r:
+            results = json.load(r).get("results") or []
+        same = [x for x in results if norm(x.get("country", "")) == norm(country or "")]
+        best = (same or results or [None])[0]
+        tz = best and best.get("timezone")
+    except Exception as e:
+        print(f"  time zone lookup failed for {city}, {country}: {e}", file=sys.stderr)
+    _tz_cache[key] = tz
+    return tz
+
+
+def bandsintown_events(artists):
+    """One Apify run for all opted-in artists. Returns {artist slug: [events]}; raises on failure."""
+    by_name = {norm(a["name"]): a["slug"] for a in artists}
+    body = json.dumps({"artists": [a["name"] for a in artists], "queryType": "events",
+                       "dateFilter": "upcoming", "includeEventDetails": False, "maxResults": 60 * len(artists)})
+    req = urllib.request.Request(APIFY_ACTOR + "?timeout=280", data=body.encode(), method="POST",
+                                 headers={**UA, "Content-Type": "application/json", "Authorization": f"Bearer {APIFY}"})
+    with urllib.request.urlopen(req, timeout=300) as r:
+        rows = json.load(r)
+    out = {a["slug"]: [] for a in artists}
+    for row in rows:
+        slug = by_name.get(norm(row.get("artistName") or ""))
+        local = row.get("datetime")
+        if row.get("recordType") != "event" or not slug or not local:
+            continue
+        city, country = row.get("venueCity") or "", row.get("venueCountry") or ""
+        tz = city_tz(city, country)
+        if not tz:
+            print(f"  {slug}: no time zone for {city}, {country}; assuming Eastern", file=sys.stderr)
+        t = datetime.fromisoformat(local[:19]).replace(tzinfo=ZoneInfo(tz) if tz else ET).astimezone(ET)
+        offers = row.get("offers") or []
+        out[slug].append({"et": t.strftime("%Y-%m-%dT%H:%M"), "city": city, "country": country,
+                          "venue": row.get("venueName") or "",
+                          "url": (offers[0].get("url") if offers else None) or row.get("url") or ""})
+    return out
+
+
 def write_if_changed(path, data):
     """Skip rewriting when only the timestamp would change, so the repo gets a commit only on real news."""
     body = {k: v for k, v in data.items() if k != "updated"}
@@ -98,9 +157,9 @@ def write_if_changed(path, data):
 
 
 def main():
-    if not KEY:
-        print("TM_API_KEY not set: only concerts/manual.json entries will be used.", file=sys.stderr)
-    if KEY and not ET:
+    if not KEY and not APIFY:
+        print("Neither APIFY_TOKEN nor TM_API_KEY set: only concerts/manual.json entries will be used.", file=sys.stderr)
+    if (KEY or APIFY) and not ET:
         sys.exit("Time zone database missing (pip install tzdata).")
     labels = json.loads((ROOT / "concerts" / "artists.json").read_text(encoding="utf-8"))["labels"]
     manual = json.loads((ROOT / "concerts" / "manual.json").read_text(encoding="utf-8"))
@@ -108,27 +167,43 @@ def main():
     now_et = (datetime.now(timezone.utc).astimezone(ET) if ET else datetime.now()) - timedelta(hours=6)
     cutoff = now_et.strftime("%Y-%m-%dT%H:%M")   # keep a show listed until 6 h after it starts
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
-    index = {"updated": stamp, "source": "Ticketmaster" if KEY else "manual only", "labels": {}}
+
+    bit, bit_failed = {}, False
+    bit_artists = [a for artists in labels.values() for a in artists if a.get("apify")]
+    if APIFY and bit_artists:
+        try:
+            bit = bandsintown_events(bit_artists)
+        except Exception as e:   # keep yesterday's files for these artists rather than wiping them
+            bit_failed = True
+            print(f"Bandsintown (Apify) failed: {e}", file=sys.stderr)
+    sources = [s for s, on in (("Bandsintown", APIFY and bit_artists), ("Ticketmaster", KEY)) if on]
+    index = {"updated": stamp, "source": " + ".join(sources) or "manual only", "labels": {}}
     changed = 0
     for label, artists in labels.items():
         index["labels"][label] = []
         for a in artists:
-            events = []
+            events = list(bit.get(a["slug"], []))
+            old = OUT / f"{a['slug']}.json"
+            if bit_failed and a.get("apify") and old.exists():
+                events = [e for e in json.loads(old.read_text(encoding="utf-8")).get("events", []) if e.get("et")]
             if KEY:
                 try:
-                    events = ticketmaster_events(a)
+                    events += ticketmaster_events(a)
                 except Exception as e:   # one bad artist shouldn't sink the run; keep the old file
                     print(f"  {a['short']}: {e}", file=sys.stderr)
-                    old = OUT / f"{a['slug']}.json"
-                    if old.exists():
+                    if old.exists() and not events:
                         events = json.loads(old.read_text(encoding="utf-8")).get("events", [])
             events += [dict(e, url=e.get("url", "")) for e in manual.get(a["slug"], [])]
-            seen, uniq = set(), []
+            # Same show from two sources: same city within 3 hours (sources round start times differently).
+            uniq = []
             for e in sorted(events, key=lambda e: e["et"]):
-                k = (e["et"], norm(e.get("venue", "")))
-                if e["et"] >= cutoff and k not in seen:
-                    seen.add(k)
-                    uniq.append(e)
+                if e["et"] < cutoff:
+                    continue
+                t = datetime.fromisoformat(e["et"])
+                if any(norm(u.get("city", "")) == norm(e.get("city", "")) and
+                       abs(datetime.fromisoformat(u["et"]) - t) <= timedelta(hours=3) for u in uniq):
+                    continue
+                uniq.append(e)
             uniq = uniq[:30]
             changed += write_if_changed(OUT / f"{a['slug']}.json", {
                 "updated": stamp, "artist": a["short"], "name": a["name"], "label": label, "events": uniq})

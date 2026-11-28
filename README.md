@@ -62,15 +62,16 @@ Live weather overrides the season: snow appears only when it's actually snowing,
 On the control page, under **Settings → Count down to**, pick an artist. The cube then counts down to that artist's next show and moves on to the following one about 6 hours after each show starts. Choose "A date I type in myself" to set a date by hand.
 
 How it works:
-- **Daily update:** `.github/workflows/concerts.yml` runs [tools/fetch_concerts.py](tools/fetch_concerts.py) every day. It looks up every artist in [concerts/artists.json](concerts/artists.json) (HYBE, JYP and YG acts; edit the file to add more) on the Ticketmaster Discovery API and writes `docs/concerts/<artist>.json`.
+- **Daily update:** `.github/workflows/concerts.yml` runs [tools/fetch_concerts.py](tools/fetch_concerts.py) every day and writes `docs/concerts/<artist>.json` for every artist in [concerts/artists.json](concerts/artists.json) (HYBE, JYP and YG acts; edit the file to add more).
+- **Source:** Bandsintown, through the Apify scraper [solidcode/bandsintown-scraper](https://apify.com/solidcode/bandsintown-scraper). It covers tours worldwide (Korea and Japan included) with exact start times, which are converted to US Eastern. Apify bills about $1.20 per 1,000 events returned, so only artists marked `"apify": true` in `artists.json` are looked up. That's TXT by default, about $1–2 a month, within Apify's free $5 monthly credit.
 - **On the cube:** it downloads its artist's file hourly over Wi-Fi.
 
 One-time setup:
-1. Get a free API key at developer.ticketmaster.com: register, then copy the Consumer Key from **My Apps**.
-2. In the GitHub repo, go to **Settings → Secrets and variables → Actions → New repository secret**. Name it `TM_API_KEY` and paste the key.
+1. Create a free account at apify.com, then copy your API token from **Settings → API & Integrations**.
+2. In the GitHub repo, go to **Settings → Secrets and variables → Actions → New repository secret**. Name it `APIFY_TOKEN` and paste the token.
 3. In the repo's **Actions** tab, open **Concert dates** and click **Run workflow** to fill the list straight away.
 
-Ticketmaster covers shows sold through Ticketmaster and Live Nation, mostly in the US, Canada, Europe and Australia. For shows it misses, such as Korea and Japan dates or fan meetings, add them to [concerts/manual.json](concerts/manual.json), with times in US Eastern.
+To follow another artist, add `"apify": true` to their entry. For shows Bandsintown misses, such as fan meetings, add them to [concerts/manual.json](concerts/manual.json), with times in US Eastern. A Ticketmaster key (secret `TM_API_KEY`) still works as an extra source if you ever get one.
 
 ## Beam splitter
 

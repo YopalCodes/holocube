@@ -1,9 +1,9 @@
 {
-  "_help": "Artists the concert list tracks. slug = file name (lowercase, no spaces). short = what the cube shows. name = exact artist name on Ticketmaster. Add or remove freely.",
+  "_help": "Artists the concert list tracks. slug = file name (lowercase, no spaces). short = what the cube shows. name = exact artist name on Bandsintown/Ticketmaster. apify = true looks the artist up on Bandsintown through Apify (billed per event returned, so keep this to the artists you follow). Add or remove freely.",
   "labels": {
     "HYBE": [
       {"slug": "bts", "short": "BTS", "name": "BTS"},
-      {"slug": "txt", "short": "TXT", "name": "TOMORROW X TOGETHER"},
+      {"slug": "txt", "short": "TXT", "name": "TOMORROW X TOGETHER", "apify": true},
       {"slug": "seventeen", "short": "SEVENTEEN", "name": "SEVENTEEN"},
       {"slug": "enhypen", "short": "ENHYPEN", "name": "ENHYPEN"},
       {"slug": "lesserafim", "short": "LE SSERAFIM", "name": "LE SSERAFIM"},
