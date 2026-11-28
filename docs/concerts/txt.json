@@ -3,5 +3,27 @@
  "artist": "TXT",
  "name": "TOMORROW X TOGETHER",
  "label": "HYBE",
- "events": []
+ "events": [
+  {
+   "et": "2026-12-11T19:00",
+   "city": "New York",
+   "country": "United States",
+   "venue": "Madison Square Garden",
+   "url": "https://www.bandsintown.com/e/1040407012-tomorrow-x-together-at-madison-square-garden?came_from=251&utm_medium=web&utm_source=artist_page&utm_campaign=ticket_all_concerts"
+  },
+  {
+   "et": "2026-12-13T18:00",
+   "city": "Boston",
+   "country": "United States",
+   "venue": "TD Garden",
+   "url": "https://www.bandsintown.com/e/1040407349-tomorrow-x-together-at-td-garden?came_from=251&utm_medium=web&utm_source=artist_page&utm_campaign=ticket_all_concerts"
+  },
+  {
+   "et": "2026-12-14T19:30",
+   "city": "Washington",
+   "country": "United States",
+   "venue": "Capital One Arena",
+   "url": "https://www.bandsintown.com/e/1040407202-tomorrow-x-together-at-capital-one-arena?came_from=251&utm_medium=web&utm_source=artist_page&utm_campaign=ticket_all_concerts"
+  }
+ ]
 }

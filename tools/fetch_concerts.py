@@ -184,10 +184,12 @@ def bandsintown_events(artists):
         return None
 
     only = artists[0]["slug"] if len(artists) == 1 else None   # rows without an artist name belong to it
-    out = {a["slug"]: [] for a in artists}
+    out = {}   # only artists that appear in this run; the actor sometimes skips some, see main()
     for row in rows:
         name = artist_of(row)
         slug = match(str(name)) if name else only
+        if slug:
+            out.setdefault(slug, [])
         local = _get(row, "datetime", "starts_at", "startsAt", "startDate", "date")
         if row.get("recordType") not in (None, "event") or not slug or not local:
             continue
@@ -258,7 +260,9 @@ def main():
         for a in artists:
             events = list(bit.get(a["slug"], []))
             old = OUT / f"{a['slug']}.json"
-            if bit_failed and a in bit_artists and old.exists():
+            # The Bandsintown actor sometimes returns only some of the task's artists. If this run
+            # had nothing at all for an artist (or failed), keep their dates from the last good run.
+            if a in bit_artists and APIFY and (bit_failed or a["slug"] not in bit) and old.exists():
                 events = [e for e in json.loads(old.read_text(encoding="utf-8")).get("events", []) if e.get("et")]
             if KEY:
                 try:
