@@ -3,160 +3,314 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>HoloCube Control</title>
+<title>Cubit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
 <style>
-  :root { --bg:#f6f6f8; --card:#fff; --fg:#16161a; --mut:#6b6b76; --bd:#e2e2e8; --acc:#6d4aff; --ok:#1a9b55; --err:#d33; }
-  @media (prefers-color-scheme: dark) { :root { --bg:#111114; --card:#1b1b20; --fg:#ececf1; --mut:#9a9aa6; --bd:#2c2c34; --acc:#9b82ff; } }
+  /* Optical-glass palette: the page is the bench, the Cubit is the one bold thing. */
+  :root {
+    --glass:#e8edf0; --pane:#f6f8f9; --ink:#17202a; --slate:#586573; --rule:#cdd5db;
+    --act:#0b6e78; --act-ink:#fff; --ok:#2d7a4b; --err:#b23b2a;
+    --d1:#4fd3e3; --d2:#8b6cf2;   /* dichroic edges, used only on the glass cube */
+    --ease:cubic-bezier(.2,.7,.2,1);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --glass:#11161b; --pane:#1a2128; --ink:#e4eaee; --slate:#8f9ca8; --rule:#2a333c; --act:#4bb8c2; --act-ink:#0c1a1d; --ok:#5fbf86; --err:#ef7b68; }
+  }
   * { box-sizing:border-box }
-  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.45 system-ui,sans-serif }
-  main { max-width:640px; margin:0 auto; padding:16px }
-  h1 { font-size:22px; margin:8px 0 4px } h2 { font-size:15px; margin:0 0 10px }
-  .card { background:var(--card); border:1px solid var(--bd); border-radius:12px; padding:14px; margin:12px 0 }
-  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center }
-  button { background:var(--acc); color:#fff; border:0; border-radius:8px; padding:9px 14px; font:inherit; cursor:pointer }
-  button.ghost { background:transparent; color:var(--fg); border:1px solid var(--bd) }
-  button:disabled { opacity:.45; cursor:default }
-  input, select { font:inherit; color:var(--fg); background:var(--bg); border:1px solid var(--bd); border-radius:8px; padding:8px; width:100% }
-  label { display:block; font-size:13px; color:var(--mut); margin:8px 0 3px }
-  .grid { display:grid; grid-template-columns:1fr 1fr; gap:0 10px }
-  .apps button { background:var(--bg); color:var(--fg); border:1px solid var(--bd) }
-  .apps button.on { background:var(--acc); color:#fff; border-color:var(--acc) }
-  .mut { color:var(--mut); font-size:13px } code { font-size:13px }
+  html { -webkit-text-size-adjust:100% }
+  body { margin:0; background:var(--glass); color:var(--ink); font:16px/1.5 'Familjen Grotesk', system-ui, sans-serif; overflow-x:hidden }
+  button, input, select { font:inherit; color:inherit }
+  :focus-visible { outline:2px solid var(--act); outline-offset:2px }
+  .hide { display:none !important }
+
+  /* Header: just the wordmark */
+  .top { max-width:1120px; margin:0 auto; padding:20px 24px 0 }
+  .mark { font-size:24px; font-weight:700; letter-spacing:-.01em; cursor:default; user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color:transparent }
+
+  .layout { max-width:1120px; margin:0 auto; padding:24px 24px 64px; display:grid; grid-template-columns:minmax(300px,380px) minmax(0,620px); gap:56px; align-items:start }
+  @media (max-width:880px) { .layout { grid-template-columns:minmax(0,1fr); gap:8px } }
+  @media (max-width:520px) { .top, .layout { padding-left:16px; padding-right:16px } .mark { font-size:21px } }
+
+  /* Before connecting: one centred column, the device large and turning */
+  body:not(.live) .layout { grid-template-columns:minmax(0,1fr); padding-top:0 }
+  body:not(.live) .hero { position:static; width:100%; max-width:720px; margin:0 auto; text-align:center }
+  body:not(.live) .panel, body:not(.live) .live-only { display:none }
+  body.live .intro-only { display:none }
+
+  /* Hero: the 3D Cubit, with the live screen floating inside the glass */
+  .hero { position:sticky; top:24px; min-width:0 }
+  @media (max-width:880px) { .hero { position:static } .panel { border-top:1px solid var(--rule); margin-top:16px; padding-top:20px } }
+  .stage { position:relative; width:100%; height:380px; touch-action:pan-y }
+  body:not(.live) .stage { height:clamp(300px, 52vh, 470px) }
+  @media (max-width:880px) { body.live .stage { height:300px } }
+  #gl { position:absolute; inset:0; width:100%; height:100%; display:block; pointer-events:none }
+  #gl.flying { z-index:5 }
+  #scr { display:none }
+  #scrGif { position:absolute; left:0; top:0; width:1px; height:1px; opacity:.01; pointer-events:none }
+  /* No WebGL: show the screen plainly */
+  .stage.flat { display:grid; place-items:center }
+  .stage.flat #gl { display:none }
+  .stage.flat #scr { display:block; width:240px; height:240px; background:#000; border-radius:6px; box-shadow:0 0 0 1px color-mix(in srgb, var(--d1) 50%, transparent) }
+
+  .caption { color:var(--slate); font-size:14px; margin:0 0 14px; min-height:21px }
+  .apps { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px }
+  .apps button { border:1px solid var(--rule); background:var(--pane); border-radius:999px; padding:6px 14px; cursor:pointer }
+  .apps button.on { background:var(--act); border-color:var(--act); color:var(--act-ink) }
+  .tip { color:var(--slate); font-size:14px; margin:0 0 12px; max-width:44ch }
+  #status { margin:0; font-size:14px }
+  body:not(.live) #status { margin:0 auto }
   #status.ok { color:var(--ok) } #status.err { color:var(--err) }
-  progress { width:100%; height:10px } #preview { max-width:120px; border-radius:8px; display:none }
-  .hide { display:none }
-  .screen { position:relative; width:240px; height:240px; margin:0 auto; background:#000; border-radius:6px; overflow:hidden;
-            box-shadow:0 0 0 6px #222, 0 8px 24px rgba(0,0,0,.35) }
-  .screen canvas, .screen img { position:absolute; inset:0; width:240px; height:240px; image-rendering:pixelated }
-  .screen img { display:none }
-  .storage { margin-bottom:12px; font-size:14px }
-  .meter { display:flex; height:10px; border-radius:5px; background:var(--bd); overflow:hidden; margin:6px 0 4px }
+
+  /* Intro copy under the device */
+  .intro h1 { font-size:40px; line-height:1.12; font-weight:600; letter-spacing:-.02em; margin:4px auto 12px; max-width:18ch }
+  .intro .lede { margin:0 auto 22px; max-width:52ch }
+  .connect { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin-bottom:12px }
+  @media (max-width:520px) { .intro h1 { font-size:30px } .connect button { flex:1 1 100% } }
+
+  /* The one orchestrated reveal: everything that needs a connection fades in after the cable is in */
+  body.live .reveal { animation:reveal .6s var(--ease) 1.05s both }
+  @keyframes reveal { from { opacity:0; transform:translateY(10px) } }
+  @media (prefers-reduced-motion: reduce) { body.live .reveal { animation:none } }
+
+  /* Buttons and fields: hierarchy by shape, not by the same radius everywhere */
+  button.primary, .panel button:not(.ghost):not(.link), .connect button:not(.ghost) {
+    background:var(--act); color:var(--act-ink); border:1px solid var(--act); border-radius:10px; padding:9px 16px; cursor:pointer; font-weight:500 }
+  button.ghost { background:transparent; border:1px solid var(--rule); border-radius:10px; padding:9px 16px; cursor:pointer }
+  button.link { background:none; border:0; padding:0; color:var(--act); text-decoration:underline; text-underline-offset:3px; cursor:pointer; font-size:14px }
+  button:disabled { opacity:.45; cursor:default }
+  input, select { width:100%; background:var(--pane); border:1px solid var(--rule); border-radius:8px; padding:9px 10px }
+  input[type=file] { padding:8px }
+  input[type=range] { padding:0; accent-color:var(--act) }
+  label { display:block; font-size:14px; color:var(--slate); margin:14px 0 4px }
+
+  /* Panel: plain sections divided by space and one hairline */
+  .panel { min-width:0 }
+  .panel section { padding:28px 0; border-top:1px solid var(--rule) }
+  .panel section:first-child { border-top:0; padding-top:4px }
+  .panel h2 { font-size:21px; line-height:1.3; font-weight:600; margin:0 0 6px }
+  .lede, .note, .mut { color:var(--slate); font-size:14px; max-width:62ch; margin:0 }
+  .lede { margin-bottom:6px }
+  .note { margin-top:10px }
+  .pair { display:grid; grid-template-columns:1fr 1fr; gap:0 12px }
+  @media (max-width:520px) { .pair { grid-template-columns:1fr } }
+  .actions { display:flex; flex-wrap:wrap; align-items:center; gap:10px 12px; margin-top:16px }
+  .saved { color:var(--ok); font-size:14px }
+  details summary { cursor:pointer; color:var(--slate); font-size:14px; margin-top:14px }
+  code { font-family:ui-monospace, Consolas, monospace; font-size:14px }
+  .devbar { display:flex; justify-content:space-between; align-items:baseline; gap:12px; padding:0 0 12px; color:var(--slate); font-size:14px }
+
+  /* Countdown: the five bands as logo buttons */
+  .bands { display:grid; grid-template-columns:repeat(5, minmax(0,1fr)); gap:8px; margin:16px 0 0 }
+  @media (max-width:560px) { .bands { grid-template-columns:repeat(3, minmax(0,1fr)) } }
+  label.band { position:relative; margin:0; height:68px; display:grid; place-items:center; padding:10px; cursor:pointer;
+               background:var(--pane); border:1px solid var(--rule); border-radius:12px; transition:border-color .15s }
+  label.band:hover { border-color:var(--slate) }
+  label.band input { position:absolute; opacity:0; pointer-events:none }
+  label.band img { max-width:100%; max-height:42px; object-fit:contain; display:block }
+  label.band span { color:var(--ink); font-weight:600 }
+  label.band:has(input:checked) { border-color:var(--act); box-shadow:inset 0 0 0 1px var(--act), inset 0 -4px 0 var(--band, var(--act)) }
+  label.band:has(input:focus-visible) { outline:2px solid var(--act); outline-offset:2px }
+  @media (prefers-color-scheme: dark) { label.band img { filter:invert(1) hue-rotate(180deg) } }
+  #bManual { margin-top:12px }
+
+  /* GIF tools */
+  .storage { font-size:14px; margin:4px 0 14px }
+  .storage .head { display:flex; justify-content:space-between; gap:12px }
+  .meter { display:flex; height:8px; border-radius:4px; background:var(--rule); overflow:hidden; margin:6px 0 4px }
   .meter div { height:100%; width:0; transition:width .2s }
-  #stGif { background:var(--acc) } #stOther { background:var(--mut) } #stNew { background:var(--ok) }
+  #stGif { background:var(--act) } #stOther { background:var(--slate) } #stNew { background:var(--ok) }
   #stNew.over { background:var(--err) }
   #stWarn.err { color:var(--err) }
-  .optwrap { display:flex; gap:12px; flex-wrap:wrap; margin-top:10px }
-  #cropPrev { width:160px; height:160px; background:#000; border-radius:8px; flex:none }
-  .opts { flex:1; min-width:180px } .opts label { margin-top:4px } .opts input[type=range] { padding:0 }
+  .optwrap { display:flex; gap:16px; flex-wrap:wrap; margin-top:14px }
+  #cropPrev { width:160px; height:160px; background:#000; border-radius:4px; flex:none }
+  .opts { flex:1; min-width:200px } .opts label:first-child { margin-top:0 }
   #opts:not(.video) .vid { display:none }
+  #preview { max-width:96px; border-radius:4px; display:none; background:#000 }
+  progress { width:100%; height:8px; accent-color:var(--act); margin-top:12px }
+
+  /* Alignment pad */
+  .pad { display:grid; grid-template-columns:repeat(3,48px); gap:6px; margin:14px 0 4px }
+  .pad button.ghost { padding:10px 0 }
+  .pad button.ghost:hover { border-color:var(--act); color:var(--act) }
+
+  /* Developer read-outs: raw content, so monospace is the honest choice */
+  pre { font:13px/1.5 ui-monospace, Consolas, monospace; background:var(--pane); border:1px solid var(--rule); border-radius:8px;
+        padding:12px; margin:10px 0 0; max-height:320px; overflow:auto; white-space:pre-wrap; word-break:break-word }
+  .cmdrow { display:flex; gap:8px; margin-top:10px } .cmdrow input { font-family:ui-monospace, Consolas, monospace; font-size:14px }
 </style>
 </head>
 <body>
-<main>
-  <h1>HoloCube</h1>
-  <div class="mut">Connect with Bluetooth or USB (Chrome or Edge). Works without Wi-Fi.</div>
+<header class="top">
+  <span class="mark" id="mark">Cubit</span>
+</header>
 
-  <div class="card">
-    <div class="row">
-      <button id="bBle">Connect Bluetooth</button>
-      <button id="bUsb" class="ghost">Connect USB</button>
-      <span id="status" class="mut">Not connected</span>
+<main class="layout">
+  <aside class="hero">
+    <div class="stage" id="stage">
+      <canvas id="gl" aria-hidden="true"></canvas>
+      <canvas id="scr" width="240" height="240" aria-label="What your Cubit is showing"></canvas>
+      <img id="scrGif" alt="">
     </div>
-  </div>
-
-  <div id="ui" class="hide">
-    <div class="card">
-      <h2>Screen preview <span class="mut">240 × 240</span></h2>
-      <div class="screen"><canvas id="scr" width="240" height="240"></canvas><img id="scrGif" alt="GIF playing on the device"></div>
-      <div id="scrNote" class="mut" style="text-align:center;margin-top:8px"></div>
-    </div>
-
-    <div class="card">
-      <h2>Apps</h2>
-      <div id="apps" class="row apps"></div>
-      <p class="mut">Roll right or left to switch apps. Tilt it toward you, back, and toward you again quickly to show this page's QR code.</p>
-      <button class="ghost" id="bQr">Show QR on device</button>
-    </div>
-
-    <div class="card">
-      <h2>GIF</h2>
-      <div class="storage">
-        <div class="row" style="justify-content:space-between"><span>Storage</span><span id="stText" class="mut"></span></div>
-        <div class="meter" role="meter" aria-label="Device storage used"><div id="stGif" title="Current GIF"></div><div id="stOther" title="Other files"></div><div id="stNew" title="New GIF"></div></div>
-        <div id="stWarn" class="mut"></div>
+    <div id="intro" class="intro intro-only">
+      <h1>Change what your Cubit shows</h1>
+      <p class="lede">Connect over Bluetooth, or plug your Cubit into this computer and connect over USB. No Wi-Fi needed. Use Chrome or Edge on a computer or Android phone; on iPhone, open this page in the Bluefy app.</p>
+      <div class="connect" id="connect">
+        <button id="bBle">Connect over Bluetooth</button>
+        <button id="bUsb" class="ghost">Connect over USB</button>
       </div>
-      <input type="file" id="gifFile" accept="image/gif,image/png,image/jpeg,image/webp,video/*">
-      <div class="mut" style="margin-top:6px">Pick a GIF, an image, or a video. For a TikTok: Share → Save video, then pick it here. 5–8 seconds fits best.</div>
-      <div id="opts" class="hide">
-        <div class="optwrap">
-          <canvas id="cropPrev" width="240" height="240" aria-label="Crop preview"></canvas>
-          <div class="opts">
-            <div class="vid"><label>Start <span id="vStartV"></span></label><input id="vStart" type="range" min="0" max="10" step="0.1" value="0"></div>
-            <div class="vid"><label>Length <span id="vLenV"></span></label><input id="vLen" type="range" min="1" max="15" step="0.5" value="6"></div>
-            <div class="vid"><label>Frame rate</label><select id="vFps"><option>8</option><option selected>10</option><option>12</option><option>15</option></select></div>
-            <div><label>Crop position <span id="vCropV"></span></label><input id="vCrop" type="range" min="0" max="100" value="50"></div>
-            <div><label>Black out background <span id="vCutV"></span></label><input id="vCut" type="range" min="0" max="80" value="0"></div>
+    </div>
+    <p id="scrNote" class="caption live-only reveal"></p>
+    <div id="apps" class="apps live-only reveal" role="group" aria-label="Switch app"></div>
+    <p id="tip" class="tip live-only reveal">Roll your Cubit left or right to switch apps. Tilt it toward you, back, and toward you again to show this page's QR code. <button class="link" id="bQr">Show the QR code now</button></p>
+    <p id="status" class="mut" role="status">Not connected</p>
+  </aside>
+
+  <div class="panel">
+    <div id="ui" class="reveal">
+      <!-- Control: everyday use -->
+      <div id="userView">
+        <section>
+          <h2>Countdown</h2>
+          <p class="lede">Pick a band and your Cubit counts down to their next US show. About 6 hours after a show starts, it moves on to the next one.</p>
+          <div id="bands" class="bands" role="radiogroup" aria-label="Count down to"></div>
+          <p id="artNext" class="note"></p>
+          <button class="link" id="bManual" aria-pressed="false">Type a date myself</button>
+          <div id="manual" class="pair hide">
+            <div><label for="evn">Countdown title</label><input id="evn"></div>
+            <div><label for="evt">Show time (Eastern)</label><input id="evt" type="datetime-local"></div>
           </div>
-        </div>
-        <div class="mut">Black shows as see-through in the cube. Raise "Black out background" to make dark areas vanish so the subject floats.</div>
-        <button id="bConv" style="margin-top:8px">Convert</button>
-      </div>
-      <div class="row" style="margin-top:10px"><img id="preview" alt="GIF preview"><span id="gifInfo" class="mut"></span></div>
-      <progress id="prog" value="0" max="1" class="hide"></progress>
-      <div class="row" style="margin-top:10px">
-        <button id="bGif" disabled>Upload to device</button>
-        <button id="bGifDel" class="ghost">Delete GIF from device</button>
-        <span id="delConfirm" class="hide row"><span class="mut">Delete the GIF on the device?</span>
-          <button id="bDelYes">Delete</button><button id="bDelNo" class="ghost">Cancel</button></span>
-      </div>
-    </div>
+          <div class="actions"><button id="bCfg">Save countdown</button><span class="saved" data-for="bCfg"></span></div>
+        </section>
 
-    <div class="card">
-      <h2>Wi-Fi <span id="wifiSt" class="mut"></span></h2>
-      <div class="mut">2.4 GHz only. Device MAC for NC State Nomad: <code id="mac">–</code></div>
-      <div class="grid">
-        <div><label>SSID</label><input id="ssid" autocomplete="off"></div>
-        <div><label>Password</label><input id="pass" type="password"></div>
-      </div>
-      <details><summary class="mut" style="margin-top:8px">WPA2-Enterprise (eduroam), optional</summary>
-        <div class="grid">
-          <div><label>Username</label><input id="euser" autocomplete="off"></div>
-          <div><label>Identity (blank = username)</label><input id="eid" autocomplete="off"></div>
-        </div>
-      </details>
-      <button id="bWifi" style="margin-top:10px">Save Wi-Fi</button>
-    </div>
+        <section>
+          <h2>GIF</h2>
+          <p class="lede">Pick a GIF, an image, or a video. For a TikTok, use Share, then Save video, and pick the file here. Clips of 5 to 8 seconds fit best.</p>
+          <div class="storage">
+            <div class="head"><span>Storage on your Cubit</span><span id="stText" class="mut"></span></div>
+            <div class="meter" role="meter" aria-label="Storage used on your Cubit"><div id="stGif" title="Current GIF"></div><div id="stOther" title="Other files"></div><div id="stNew" title="New GIF"></div></div>
+            <div id="stWarn" class="mut"></div>
+          </div>
+          <input type="file" id="gifFile" accept="image/gif,image/png,image/jpeg,image/webp,video/*" aria-label="Choose a GIF, image, or video">
+          <div id="opts" class="hide">
+            <div class="optwrap">
+              <canvas id="cropPrev" width="240" height="240" aria-label="Crop preview"></canvas>
+              <div class="opts">
+                <div class="vid"><label for="vStart">Start <span id="vStartV"></span></label><input id="vStart" type="range" min="0" max="10" step="0.1" value="0"></div>
+                <div class="vid"><label for="vLen">Length <span id="vLenV"></span></label><input id="vLen" type="range" min="1" max="15" step="0.5" value="6"></div>
+                <div class="vid"><label for="vFps">Frame rate</label><select id="vFps"><option>8</option><option selected>10</option><option>12</option><option>15</option></select></div>
+                <div><label for="vCrop">Crop position <span id="vCropV"></span></label><input id="vCrop" type="range" min="0" max="100" value="50"></div>
+                <div><label for="vCut">Black out background <span id="vCutV"></span></label><input id="vCut" type="range" min="0" max="80" value="0"></div>
+              </div>
+            </div>
+            <p class="note">Black is see-through in the glass cube. Raise "Black out background" to make dark areas vanish so the subject floats.</p>
+            <div class="actions"><button id="bConv">Convert</button></div>
+          </div>
+          <div class="actions"><img id="preview" alt="Converted GIF"><span id="gifInfo" class="mut"></span></div>
+          <progress id="prog" value="0" max="1" class="hide"></progress>
+          <div class="actions">
+            <button id="bGif" disabled>Upload to Cubit</button>
+            <button id="bGifDel" class="ghost">Delete GIF from Cubit</button>
+            <span id="delConfirm" class="hide actions" style="margin:0"><span class="mut">Delete the GIF on your Cubit?</span>
+              <button id="bDelYes">Delete GIF</button><button id="bDelNo" class="ghost">Keep it</button></span>
+          </div>
+        </section>
 
-    <div class="card">
-      <h2>Settings</h2>
-      <div class="grid">
-        <div style="grid-column:1/-1"><label>Count down to</label>
-          <select id="art"><option value="">A date I type in myself</option></select>
-          <div id="artNext" class="mut" style="margin-top:4px"></div></div>
-        <div class="manual"><label>Countdown title</label><input id="evn"></div>
-        <div class="manual"><label>Concert time (Eastern)</label><input id="evt" type="datetime-local"></div>
-        <div><label>Weather latitude</label><input id="lat" type="number" step="0.0001"></div>
-        <div><label>Weather longitude</label><input id="lon" type="number" step="0.0001"></div>
-        <div><label>Display orientation</label>
-          <select id="rot">
-            <option value="0">0°</option><option value="1">90°</option><option value="2">180°</option><option value="3">270°</option>
-            <option value="4">0° mirrored</option><option value="5">90° mirrored</option><option value="6">180° mirrored</option><option value="7">270° mirrored</option>
-          </select></div>
-        <div><label>Clock background</label>
+        <section>
+          <h2>Clock</h2>
+          <p class="lede">The background behind the clock follows the season and the live weather unless you pick one here.</p>
+          <label for="fx">Clock background</label>
           <select id="fx">
-            <option value="0">Auto (season + live weather)</option><option value="1">Off</option>
-            <option value="2">Winter: snow + lights</option><option value="7">Winter: sparkles + lights</option>
+            <option value="0">Season and live weather</option><option value="1">None</option>
+            <option value="2">Winter: snow and lights</option><option value="7">Winter: sparkles and lights</option>
             <option value="3">Rain</option><option value="4">Spring petals</option>
             <option value="5">Summer fireflies</option><option value="6">Fall leaves</option>
-          </select></div>
-        <div><label>QR code URL</label><input id="url"></div>
-      </div>
-      <button id="bCfg" style="margin-top:10px">Save settings</button>
-    </div>
+          </select>
+          <div class="actions"><button id="bClock">Save clock</button><span class="saved" data-for="bClock"></span></div>
+        </section>
 
-    <div class="card">
-      <h2>Alignment</h2>
-      <p class="mut">Shows a border and crosshair on the cube. Nudge until the crosshair sits in the middle of the cube and all four border lines look equally close to its edges. Each step is 1 pixel (about 0.1 mm), and it's saved right away.</p>
-      <div style="display:grid;grid-template-columns:repeat(3,52px);gap:6px;justify-content:start;margin:10px 0">
-        <span></span><button id="nUp">↑</button><span></span>
-        <button id="nLeft">←</button><button id="bAlign" title="Show pattern">◎</button><button id="nRight">→</button>
-        <span></span><button id="nDown">↓</button><span></span>
+        <section>
+          <h2>Wi-Fi <span id="wifiSt" class="mut"></span></h2>
+          <p class="lede">Your Cubit uses Wi-Fi for the time, weather, and concert dates. 2.4 GHz networks only. To register it on NC State Nomad, use this MAC address: <code id="mac">not read yet</code></p>
+          <div class="pair">
+            <div><label for="ssid">Network name</label><input id="ssid" autocomplete="off"></div>
+            <div><label for="pass">Password</label><input id="pass" type="password"></div>
+          </div>
+          <details><summary>Sign-in network such as eduroam (optional)</summary>
+            <div class="pair">
+              <div><label for="euser">Username</label><input id="euser" autocomplete="off"></div>
+              <div><label for="eid">Identity, if different from username</label><input id="eid" autocomplete="off"></div>
+            </div>
+          </details>
+          <div class="actions"><button id="bWifi">Save Wi-Fi</button><span class="saved" data-for="bWifi"></span></div>
+        </section>
       </div>
-      <div class="grid">
-        <div><label>X shift (px, + = right)</label><input id="sx" type="number" step="1" min="-60" max="60"></div>
-        <div><label>Y shift (px, + = down)</label><input id="sy" type="number" step="1" min="-60" max="60"></div>
+
+      <!-- Developer: tuning and debugging. Opened with #dev, five taps on the wordmark, or Ctrl+Shift+D. -->
+      <div id="devView" class="hide">
+        <div class="devbar"><span>Developer tools</span><button class="link" id="bBack">Back to controls</button></div>
+        <section>
+          <h2>Alignment</h2>
+          <p class="lede">Shows a border and crosshair on the screen. Nudge until the crosshair sits in the middle and all four border lines look equally close to the edges. Each step moves the image 1 pixel, about 0.1 mm, and is saved right away.</p>
+          <div class="pad">
+            <span></span><button class="ghost" id="nUp" aria-label="Move up">↑</button><span></span>
+            <button class="ghost" id="nLeft" aria-label="Move left">←</button><button class="ghost" id="bAlign" aria-label="Show alignment pattern">◎</button><button class="ghost" id="nRight" aria-label="Move right">→</button>
+            <span></span><button class="ghost" id="nDown" aria-label="Move down">↓</button><span></span>
+          </div>
+          <div class="pair">
+            <div><label for="sx">Horizontal shift in pixels, + is right</label><input id="sx" type="number" step="1" min="-60" max="60"></div>
+            <div><label for="sy">Vertical shift in pixels, + is down</label><input id="sy" type="number" step="1" min="-60" max="60"></div>
+          </div>
+          <div class="actions"><button id="bShift">Apply shift</button></div>
+        </section>
+
+        <section>
+          <h2>Display and location</h2>
+          <p class="lede">The reflection is a mirror image, so pick a mirrored orientation that makes text read correctly through the glass.</p>
+          <div class="pair">
+            <div><label for="rot">Orientation</label>
+              <select id="rot">
+                <option value="0">0°</option><option value="1">90°</option><option value="2">180°</option><option value="3">270°</option>
+                <option value="4">0° mirrored</option><option value="5">90° mirrored</option><option value="6">180° mirrored</option><option value="7">270° mirrored</option>
+              </select></div>
+            <div><label for="url">QR code link</label><input id="url"></div>
+            <div><label for="lat">Weather latitude</label><input id="lat" type="number" step="0.0001"></div>
+            <div><label for="lon">Weather longitude</label><input id="lon" type="number" step="0.0001"></div>
+          </div>
+          <div class="actions"><button id="bDisp">Save display and location</button><span class="saved" data-for="bDisp"></span></div>
+        </section>
+
+        <section>
+          <h2>Send a command</h2>
+          <p class="lede">One JSON object per line, as in the protocol in the README. Replies appear in the log below.</p>
+          <div class="cmdrow"><input id="rawCmd" value='{"cmd":"info"}' aria-label="Command JSON" spellcheck="false"><button id="bRaw">Send</button></div>
+          <p id="rawErr" class="note"></p>
+        </section>
+
+        <section>
+          <h2>Log</h2>
+          <p class="lede">Everything your Cubit prints, plus commands this page sends. GIF upload and download chunks are left out.</p>
+          <pre id="log" aria-live="off"></pre>
+          <div class="actions"><button class="ghost" id="bLogClr">Clear log</button></div>
+        </section>
+
+        <section>
+          <h2>Device state</h2>
+          <p class="lede">The latest state report, updated whenever your Cubit sends one.</p>
+          <pre id="stateJson">Nothing received yet.</pre>
+        </section>
+
+        <section>
+          <h2>Concert data</h2>
+          <p id="concertInfo" class="lede">Loading the concert list.</p>
+        </section>
       </div>
-      <button id="bShift" style="margin-top:10px">Apply</button>
     </div>
   </div>
 </main>
@@ -167,33 +321,78 @@ import { GIFEncoder, quantize, applyPalette } from 'https://cdn.jsdelivr.net/npm
 const SVC = '6e400001-b5a3-f393-e0a9-e50e24dcca9e', RX = '6e400002-b5a3-f393-e0a9-e50e24dcca9e', TX = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
 const SIZE = 240, MAX_BYTES = 1900000;
 const $ = id => document.getElementById(id), enc = new TextEncoder();
+const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 let link = null, state = null, waiter = null, gifBytes = null, rxBuf = '';
 
 function setStatus(t, cls = '') { $('status').textContent = t; $('status').className = cls || 'mut'; }
+
+// ---- Control / Developer views. Developer is hidden: #dev, five taps on the wordmark in 2 s, or Ctrl+Shift+D ----
+let devMode = false;
+function setMode(dev, remember = true) {
+  devMode = dev;
+  $('userView').classList.toggle('hide', dev); $('devView').classList.toggle('hide', !dev);
+  if (remember) try { localStorage.setItem('cubit.mode', dev ? 'dev' : 'user'); } catch {}
+  if (dev && !link) setStatus('Developer tools are on. Connect to use them.');
+}
+function enterDev() { if (!devMode) setMode(true); }
+let taps = [];
+$('mark').addEventListener('click', () => {
+  const now = performance.now(); taps = taps.filter(t => now - t < 2000); taps.push(now);
+  if (taps.length >= 5) { taps = []; enterDev(); }
+});
+addEventListener('keydown', e => { if (e.ctrlKey && e.shiftKey && (e.key === 'D' || e.key === 'd')) { e.preventDefault(); enterDev(); } });
+addEventListener('hashchange', () => { if (location.hash === '#dev') enterDev(); });
+$('bBack').onclick = () => { setMode(false); if (location.hash === '#dev') history.replaceState(null, '', location.pathname + location.search); };
+setMode(location.hash === '#dev' || (() => { try { return localStorage.getItem('cubit.mode') === 'dev'; } catch { return false; } })(), false);
+
+// ---- Developer log ----
+const logLines = [];
+function logLine(s) {
+  logLines.push(`${new Date().toLocaleTimeString()}  ${s}`);
+  if (logLines.length > 400) logLines.splice(0, logLines.length - 400);
+  const el = $('log'), atEnd = el.scrollTop + el.clientHeight >= el.scrollHeight - 8;
+  el.textContent = logLines.join('\n');
+  if (atEnd) el.scrollTop = el.scrollHeight;
+}
+$('bLogClr').onclick = () => { logLines.length = 0; $('log').textContent = ''; };
 
 function onText(t) {
   rxBuf += t;
   let i;
   while ((i = rxBuf.indexOf('\n')) >= 0) {
     const line = rxBuf.slice(0, i).trim(); rxBuf = rxBuf.slice(i + 1);
-    if (!line.startsWith('{')) { if (line) console.log('[dev]', line); continue; }
+    if (!line.startsWith('{')) { if (line) logLine(line); continue; }
     let m; try { m = JSON.parse(line); } catch { continue; }
     if (m.type === 'state') render(m);
-    else if (waiter) { const w = waiter; waiter = null; w(m); }
+    else {
+      if (!(m.type === 'ack' && m.msg === 'chunk') && m.type !== 'gifdata') logLine('cube: ' + line);
+      if (waiter && waiter.accept(m)) { const w = waiter; waiter = null; w.res(m); }
+    }
   }
 }
 
-async function cmd(obj, wait = false) {
+// Commands that wait for a reply go one at a time, so a background GIF download can't steal another command's reply.
+let cmdQueue = Promise.resolve();
+const QUIET = new Set(['gif_chunk', 'gif_get']);
+async function send(obj) {
   if (!link) throw new Error('not connected');
-  const p = wait ? new Promise((res, rej) => {
-    waiter = res;
-    setTimeout(() => { if (waiter === res) waiter = null; rej(new Error('timeout')); }, 8000);
-  }) : null;
+  if (!QUIET.has(obj.cmd)) logLine('page: ' + JSON.stringify(obj));
   await link.send(JSON.stringify(obj) + '\n');
-  if (!p) return;
-  const m = await p;
-  if (m.type === 'err') throw new Error(m.msg);
-  return m;
+}
+function cmd(obj, wait = false, accept = () => true) {
+  if (!wait) return send(obj);
+  const run = cmdQueue.then(async () => {
+    const p = new Promise((res, rej) => {
+      const w = { res, accept }; waiter = w;
+      setTimeout(() => { if (waiter === w) waiter = null; rej(new Error('timeout')); }, 8000);
+    });
+    await send(obj);
+    const m = await p;
+    if (m.type === 'err') throw new Error(m.msg);
+    return m;
+  });
+  cmdQueue = run.catch(() => {});
+  return run;
 }
 
 const serialLink = async () => {
@@ -226,36 +425,62 @@ async function connect(factory) {
   try {
     setStatus('Connecting…');
     link = await factory();
-    setStatus(`Connected via ${link.kind}`, 'ok');
-    $('ui').classList.remove('hide');
+    setStatus(`Connected over ${link.kind}`, 'ok');
+    logLine(`Connected over ${link.kind}`);
+    showLive(true);
     await cmd({ cmd: 'info' });
   } catch (e) { link = null; setStatus(e.message, 'err'); }
 }
-function disconnected() { link = null; setStatus('Disconnected', 'err'); }
+function disconnected() {
+  if (!link) return;
+  link = null; waiter = null; state = null; formFilled = false;
+  if (gifJob) gifJob.abort = true;
+  setStatus('Disconnected. Connect again to keep making changes.', 'err');
+  logLine('Disconnected');
+  showLive(false);
+}
 
+// Every save sends the whole settings set, so each section's button can't undo another's.
+function saveCfg(btn) {
+  const note = document.querySelector(`.saved[data-for="${btn}"]`);
+  return cmd({ cmd: 'cfg', art: artSel, ...(artSel ? {} : { evn: $('evn').value, evt: $('evt').value }),
+    url: $('url').value, lat: parseFloat($('lat').value), lon: parseFloat($('lon').value),
+    rot: parseInt($('rot').value), fx: parseInt($('fx').value) })
+    .then(() => flash(note, 'Saved'), e => flash(note, 'Not saved: ' + e.message, true));
+}
+function flash(el, text, bad = false) {
+  if (!el) return;
+  el.textContent = text; el.style.color = bad ? 'var(--err)' : '';
+  clearTimeout(el._t); el._t = setTimeout(() => { el.textContent = ''; }, 4000);
+}
+
+const appName = () => state ? state.apps[state.active] || '' : '';
+const isCountdown = n => n === 'Countdown' || n === 'TXT Countdown';
 let formFilled = false;
 function render(s) {
   state = s;
   $('apps').innerHTML = '';
   s.apps.forEach((name, i) => {
     const b = document.createElement('button');
-    b.textContent = name; b.className = i === s.active ? 'on' : '';
+    b.textContent = name === 'TXT Countdown' ? 'Countdown' : name; b.className = i === s.active ? 'on' : '';
     b.onclick = () => cmd({ cmd: 'app', i });
     $('apps').appendChild(b);
   });
-  $('mac').textContent = s.mac; $('wifiSt').textContent = `· ${s.wifi}`;
+  $('mac').textContent = s.mac; $('wifiSt').textContent = s.wifi ? `(${s.wifi})` : '';
   $('sx').value = s.sx ?? 0; $('sy').value = s.sy ?? 0;
+  $('stateJson').textContent = JSON.stringify(s, null, 2);
   if (!formFilled) {
     formFilled = true;
-    $('ssid').value = s.ssid; $('evn').value = s.evn; $('evt').value = s.evt; setArt(s.art || '');
-    $('lat').value = s.lat.toFixed(4); $('lon').value = s.lon.toFixed(4); $('rot').value = s.rot; $('fx').value = s.fx ?? 0;
-    $('url').value = s.url.includes('YOUR-GITHUB-USERNAME') || !s.url ? location.href.split('#')[0] : s.url;
+    $('ssid').value = s.ssid || ''; $('evn').value = s.evn || ''; $('evt').value = s.evt || ''; setArt(s.art ?? 'txt');
+    $('lat').value = (+s.lat).toFixed(4); $('lon').value = (+s.lon).toFixed(4); $('rot').value = s.rot; $('fx').value = s.fx ?? 0;
+    $('url').value = !s.url || s.url.includes('YOUR-GITHUB-USERNAME') ? location.href.split('#')[0] : s.url;
   }
-  $('gifInfo').textContent ||= s.gif ? `Device has a ${(s.gif / 1024).toFixed(0)} KB GIF` : 'No GIF on device yet';
+  $('gifInfo').textContent ||= s.gif ? `Your Cubit has a ${(s.gif / 1024).toFixed(0)} KB GIF.` : 'No GIF on your Cubit yet. Pick a file to make one.';
   $('bGifDel').disabled = !s.gif;
   renderStorage();
-  drawPreview();
-  if ($('art').value === (s.art || '')) artChanged();   // refresh the device's lookup status
+  if (artSel === (s.art ?? artSel)) artChanged();   // refresh the device's lookup status
+  syncGif();
+  screenDirty = true; updateCaption();
 }
 
 // ---- Storage meter + upload safety check (the device enforces the same rule) ----
@@ -274,7 +499,7 @@ function renderStorage() {
   $('stGif').style.width = pct(gifBytes ? 0 : s.gif);
   $('stOther').style.width = pct(other);
   $('stNew').style.width = pct(gifBytes ? gifBytes.length : 0);
-  $('stText').textContent = `${kb(s.fsUsed)} used of ${kb(s.fsTotal)} · ${kb(s.fsFree)} free`;
+  $('stText').textContent = `${kb(s.fsFree)} free of ${kb(s.fsTotal)}`;
   const c = gifBytes ? uploadCheck(gifBytes.length) : null;
   $('stNew').classList.toggle('over', !!c && !c.ok);
   $('stWarn').textContent = c ? c.msg : (s.fsUsed / s.fsTotal > 0.8 ? 'Storage is over 80% full.' : '');
@@ -287,7 +512,7 @@ $('bGifDel').onclick = () => { $('bGifDel').classList.add('hide'); $('delConfirm
 $('bDelNo').onclick = () => { $('delConfirm').classList.add('hide'); $('bGifDel').classList.remove('hide'); };
 $('bDelYes').onclick = async () => {
   $('delConfirm').classList.add('hide'); $('bGifDel').classList.remove('hide');
-  try { await cmd({ cmd: 'gif_delete' }, true); $('gifInfo').textContent = 'GIF deleted from device'; }
+  try { await cmd({ cmd: 'gif_delete' }, true); $('gifInfo').textContent = 'GIF deleted from your Cubit.'; }
   catch (e) { $('gifInfo').textContent = 'Delete failed: ' + e.message; }
 };
 
@@ -375,7 +600,7 @@ async function runConvert() {
     const { out, frames } = await convert();
     gifBytes = out;
     $('preview').src = URL.createObjectURL(new Blob([out], { type: 'image/gif' })); $('preview').style.display = 'block';
-    $('gifInfo').textContent = `${frames} frames · ${(out.length / 1024).toFixed(0)} KB`;
+    $('gifInfo').textContent = `Ready to upload: ${frames} frames, ${(out.length / 1024).toFixed(0)} KB.`;
     renderStorage();
   } catch (err) { $('gifInfo').textContent = 'Could not convert: ' + err.message; }
   $('bConv').disabled = false;
@@ -409,6 +634,7 @@ $('gifFile').onchange = async e => {
 
 $('bGif').onclick = async () => {
   const b = gifBytes, prog = $('prog');
+  if (gifJob) gifJob.abort = true;   // a new GIF replaces the one being copied down
   $('bGif').disabled = true; prog.classList.remove('hide'); prog.max = b.length; prog.value = 0;
   const t0 = performance.now();
   try {
@@ -420,10 +646,10 @@ $('bGif').onclick = async () => {
       let s = ''; for (let j = 0; j < part.length; j++) s += String.fromCharCode(part[j]);
       await cmd({ cmd: 'gif_chunk', d: btoa(s) }, true);
       prog.value = i + part.length;
-      $('gifInfo').textContent = `Uploading ${(100 * prog.value / b.length).toFixed(0)}% · ${(prog.value / 1024 / ((performance.now() - t0) / 1000)).toFixed(1)} KB/s`;
+      $('gifInfo').textContent = `Uploading, ${(100 * prog.value / b.length).toFixed(0)}% done at ${(prog.value / 1024 / ((performance.now() - t0) / 1000)).toFixed(1)} KB/s`;
     }
     await cmd({ cmd: 'gif_end' }, true);
-    $('gifInfo').textContent = 'Uploaded ✓';
+    $('gifInfo').textContent = 'Uploaded. Your Cubit is playing it now.';
     cacheGif(b);
     gifBytes = null;
     const gi = state?.apps.indexOf('GIF Player'); if (gi >= 0) cmd({ cmd: 'app', i: gi });
@@ -431,11 +657,98 @@ $('bGif').onclick = async () => {
   prog.classList.add('hide'); renderStorage();
 };
 
+// ---- The device's GIF on the page: cached in IndexedDB by CRC-32, copied down with gif_get when it changes ----
+const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(b) { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = CRC_T[(c ^ b[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+function idb(mode, fn) {
+  return new Promise((res, rej) => {
+    try {
+      const r = indexedDB.open('cubit', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('gifs');
+      r.onsuccess = () => { const q = fn(r.result.transaction('gifs', mode).objectStore('gifs')); q.onsuccess = () => res(q.result); q.onerror = rej; };
+      r.onerror = rej;
+    } catch (e) { rej(e); }
+  });
+}
+let shownGif = null;   // { sum, frames:[{bmp, t, dur}], total } or { sum, img }
+async function useGif(bytes, sum) {
+  if (shownGif?.sum === sum) return;
+  let next;
+  try {
+    const dec = new ImageDecoder({ data: bytes, type: 'image/gif' });
+    await dec.tracks.ready;
+    const n = dec.tracks.selectedTrack.frameCount, frames = []; let total = 0;
+    for (let i = 0; i < n; i++) {
+      const { image } = await dec.decode({ frameIndex: i });
+      const dur = Math.max(20, (image.duration || 100000) / 1000);
+      frames.push({ bmp: await createImageBitmap(image), t: total, dur }); total += dur;
+      image.close();
+    }
+    dec.close();
+    next = { sum, frames, total };
+  } catch {   // no ImageDecoder: let Chromium animate an <img> and copy its current frame
+    $('scrGif').src = URL.createObjectURL(new Blob([bytes], { type: 'image/gif' }));
+    next = { sum, img: $('scrGif') };
+  }
+  shownGif?.frames?.forEach(f => f.bmp.close());
+  shownGif = next; screenDirty = true; updateCaption();
+}
+function cacheGif(bytes) {
+  const sum = crc32(bytes);
+  useGif(bytes, sum);
+  idb('readwrite', s => s.clear()).then(() => idb('readwrite', s => s.put(bytes, sum))).catch(() => {});
+}
+let gifJob = null, gifPartial = null, gifFailed = 0;
+function syncGif() {
+  const want = state && state.gif && state.gifSum ? state.gifSum >>> 0 : 0;
+  if (!want || !link || appName() !== 'GIF Player') return;
+  if (shownGif?.sum === want || gifJob?.sum === want || gifFailed === want) return;
+  if (gifJob) gifJob.abort = true;
+  const job = gifJob = { sum: want, size: state.gif, abort: false, pct: 0 };
+  runGifJob(job).finally(() => { if (gifJob === job) gifJob = null; updateCaption(); });
+}
+async function runGifJob(job) {
+  const cached = await idb('readonly', s => s.get(job.sum)).catch(() => null);
+  if (cached && crc32(cached) === job.sum) { await useGif(cached, job.sum); return; }
+  if (gifPartial?.sum !== job.sum) gifPartial = { sum: job.sum, buf: new Uint8Array(job.size), off: 0 };
+  const p = gifPartial;
+  const stale = () => job.abort || !link || appName() !== 'GIF Player' || (state.gifSum >>> 0) !== job.sum;
+  try {
+    while (p.off < p.buf.length) {
+      if (stale()) return;   // resumes from p.off next time
+      const off = p.off, len = Math.min(link.chunk, p.buf.length - off);
+      const m = await cmd({ cmd: 'gif_get', off, len }, true, m => (m.type === 'gifdata' && m.off === off) || m.type === 'err');
+      if (m.size !== p.buf.length) throw new Error('the GIF changed while copying');
+      const bin = atob(m.d);
+      if (!bin.length) throw new Error('empty reply');
+      for (let i = 0; i < bin.length; i++) p.buf[off + i] = bin.charCodeAt(i);
+      p.off = off + bin.length;
+      job.pct = Math.floor(100 * p.off / p.buf.length); updateCaption();
+    }
+    gifPartial = null;
+    if (crc32(p.buf) !== job.sum) throw new Error("the copy didn't match");
+    cacheGif(p.buf);
+  } catch (e) {
+    if (stale()) return;
+    gifFailed = job.sum; gifPartial = null;
+    $('scrNote').textContent = `Couldn't copy the GIF from your Cubit to show it here: ${e.message}.`;
+  }
+}
+function updateCaption() {
+  if (!state) return;
+  const app = appName();
+  if (gifJob && app === 'GIF Player') { $('scrNote').textContent = `Copying the GIF from your Cubit to show it here, ${gifJob.pct}% done.`; return; }
+  if (app === 'GIF Player' && gifFailed && gifFailed === (state.gifSum >>> 0)) return;
+  $('scrNote').textContent = app === 'GIF Player' && shownGif && shownGif.sum === (state.gifSum >>> 0)
+    ? 'Showing the GIF Player with the GIF from your Cubit.'
+    : `Showing ${isCountdown(app) ? 'the Countdown' : app}. The preview's fonts are close, not exact.`;
+}
+
 // ---- Screen preview: re-draws the active app the way the firmware does (src/apps/apps.cpp) ----
 const scr = $('scr').getContext('2d');
-const C = { white: '#fff', cyan: '#0ff', lgrey: '#d3d3d3', dgrey: '#7b7d7b', orange: '#ffa500', purple: '#9c9aff', magenta: '#f0f' };
+const C = { white: '#fff', cyan: '#0ff', lgrey: '#d3d3d3', dgrey: '#7b7d7b', purple: '#9c9aff', magenta: '#f0f' };
 const F = { big: '700 50px ui-monospace, Consolas, monospace', huge: '400 62px system-ui, sans-serif', f2b: '17px system-ui, sans-serif', f4: '600 21px system-ui, sans-serif', f2: '13px system-ui, sans-serif',
-            b12: '700 22px Arial, sans-serif', b18: '700 30px Arial, sans-serif' };
+            b12: '700 22px Arial, sans-serif', b18: '700 30px Arial, sans-serif', days: '700 56px system-ui, sans-serif' };
 const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const etFmt = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hourCycle: 'h23', year: 'numeric', month: '2-digit',
   day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', weekday: 'short' });
@@ -447,27 +760,86 @@ function etToEpoch(s) {  // "YYYY-MM-DDTHH:MM" in Eastern -> ms
 function txt(s, y, font, col) {
   scr.font = font; scr.fillStyle = col; scr.textAlign = 'center'; scr.textBaseline = 'middle'; scr.fillText(s, 120, y);
 }
-let cachedGif = null;
-function idb(mode, fn) {
-  return new Promise((res, rej) => {
-    try {
-      const r = indexedDB.open('holocube', 1);
-      r.onupgradeneeded = () => r.result.createObjectStore('kv');
-      r.onsuccess = () => { const q = fn(r.result.transaction('kv', mode).objectStore('kv')); q.onsuccess = () => res(q.result); q.onerror = rej; };
-      r.onerror = rej;
-    } catch (e) { rej(e); }
-  });
-}
-function useGif(bytes) { cachedGif = { size: bytes.length, url: URL.createObjectURL(new Blob([bytes], { type: 'image/gif' })) }; $('scrGif').src = cachedGif.url; }
-function cacheGif(bytes) { useGif(bytes); idb('readwrite', s => s.put(bytes, 'gif')).catch(() => {}); }
-idb('readonly', s => s.get('gif')).then(b => b && useGif(b)).catch(() => {});
 
-function drawPreview() {
-  if (!state) return;
-  const app = state.apps[state.active] || '';
-  const showGif = app === 'GIF Player' && cachedGif && cachedGif.size === state.gif;
-  $('scrGif').style.display = showGif ? 'block' : 'none';
-  $('scrNote').textContent = `Showing ${app}. Fonts are approximate.`;
+// Band logos, tinted in the band's color on black like the firmware (Stray Kids keeps its red accent)
+const BAND_ORDER = ['txt', 'enhypen', 'wavetoearth', 'straykids', 'bts'];
+let bandMeta = {};
+const logoCache = {};
+function bandLogo(slug) {
+  if (slug in logoCache) return logoCache[slug];
+  logoCache[slug] = null;
+  const img = new Image();
+  img.onload = () => {
+    const color = bandMeta[slug]?.color || '#ffffff', s = Math.min(150 / img.width, 92 / img.height);
+    const c = document.createElement('canvas'); c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+    const x = c.getContext('2d', { willReadFrequently: true });
+    x.drawImage(img, 0, 0, c.width, c.height);
+    try {
+      const im = x.getImageData(0, 0, c.width, c.height), d = im.data;
+      const [br, bg, bb] = [1, 3, 5].map(i => parseInt(color.slice(i, i + 2), 16));
+      for (let i = 0; i < d.length; i += 4) {
+        const red = d[i] > 120 && d[i] - Math.max(d[i + 1], d[i + 2]) > 60;
+        d[i] = red ? 235 : br; d[i + 1] = red ? 45 : bg; d[i + 2] = red ? 45 : bb;
+      }
+      x.putImageData(im, 0, 0);
+    } catch { x.globalCompositeOperation = 'source-in'; x.fillStyle = color; x.fillRect(0, 0, c.width, c.height); }
+    logoCache[slug] = c; screenDirty = true;
+  };
+  img.src = `logos/${slug}.png`;
+  return null;
+}
+
+let screenDirty = true, lastSec = -1;
+const pad2 = n => String(n).padStart(2, '0');
+function drawCountdown(now) {
+  const slug = state.art || '', color = bandMeta[slug]?.color || C.purple, t = now / 1000;
+  const bob = Math.sin(t * 2 * Math.PI / 2.4) * 5;
+  // A few twinkling dots around the logo
+  for (let i = 0; i < 9; i++) {
+    const a = Math.sin(t * (1.3 + (i % 4) * .37) + i * 2.17);
+    if (a <= 0) continue;
+    const x = 18 + ((i * 97) % 204), y = 14 + ((i * 53) % 96);
+    scr.globalAlpha = a; scr.fillStyle = i % 3 ? color : '#fff';
+    scr.beginPath(); scr.arc(x, y, i % 2 ? 1.6 : 1.1, 0, 7); scr.fill();
+  }
+  scr.globalAlpha = 1;
+  const logo = slug ? bandLogo(slug) : null;
+  if (logo) scr.drawImage(logo, Math.round(120 - logo.width / 2), Math.round(64 + bob - logo.height / 2));
+  else txt(slug ? (bandMeta[slug]?.name || slug.toUpperCase()) : (state.evn || 'Countdown'), 64 + bob, F.b12, color);
+
+  if (!/^\d{4}-\d\d-\d\dT\d\d:\d\d/.test(state.evt || '')) {
+    txt(slug ? 'No US shows yet' : 'Set a date', 150, F.f4, C.lgrey);
+    txt(slug ? 'Your Cubit checks every hour' : 'on the control page', 176, F.f2, C.dgrey); return;
+  }
+  if (!state.timeOk) { txt('Waiting for time sync', 150, F.f4, C.dgrey); return; }
+  const left = Math.floor((etToEpoch(state.evt) - Date.now()) / 1000);
+  if (left <= 0) { txt(left > -6 * 3600 ? 'SHOW TIME!' : 'Update the date', 150, F.b18, C.magenta); return; }
+  const d = Math.floor(left / 86400);
+  txt(String(d), 140, F.days, C.white);
+  txt(d === 1 ? 'day' : 'days', 174, F.f2b, color);
+  txt(`${pad2(Math.floor(left % 86400 / 3600))}:${pad2(Math.floor(left % 3600 / 60))}:${pad2(left % 60)}`, 198, F.f4, C.cyan);
+  const n = concertFor(slug)?.next, city = n?.et === state.evt ? n.city : (state.evn || '').split(' - ').slice(1).join(' - ');
+  const h = +state.evt.slice(11, 13), when = `${MON[+state.evt.slice(5, 7) - 1]} ${+state.evt.slice(8, 10)}, ${h % 12 || 12}:${state.evt.slice(14, 16)} ${h < 12 ? 'AM' : 'PM'} ET`;
+  txt(city ? `${city}, ${when}` : when, 224, F.f2, C.dgrey);
+}
+function drawGifFrame(now) {
+  const g = shownGif;
+  if (g.img) { scr.drawImage(g.img, 0, 0, 240, 240); return; }
+  const tt = now % g.total; let f = g.frames[0];
+  for (const fr of g.frames) { if (fr.t > tt) break; f = fr; }
+  scr.drawImage(f.bmp, 0, 0, 240, 240);
+}
+// Returns true when the canvas changed, so the 3D texture is only re-uploaded then.
+function drawPreview(now) {
+  if (!state) {
+    if (!screenDirty) return false;
+    screenDirty = false; scr.fillStyle = '#000'; scr.fillRect(0, 0, 240, 240); return true;
+  }
+  const app = appName();
+  const showGif = app === 'GIF Player' && shownGif && shownGif.sum === (state.gifSum >>> 0);
+  const animated = isCountdown(app) || showGif;
+  if (!animated && !screenDirty) { const s = Math.floor(Date.now() / 1000); if (s === lastSec) return false; lastSec = s; }
+  screenDirty = false;
   scr.fillStyle = '#000'; scr.fillRect(0, 0, 240, 240);
   if (app === 'Clock & Weather') {
     // Weather strip on top (the device draws its own icons; emoji here are a stand-in)
@@ -476,9 +848,9 @@ function drawPreview() {
     const temp = state.wT != null ? `${Math.round(state.wT)}°` : '--°';
     txt(`${sky(state.wCode)} ${temp}`.trim(), 34, F.f4, state.wT != null ? '#ffbe5a' : '#5a5f6e');
     if (!state.timeOk) {
-      txt('--:--', 108, F.big, '#464b5a'); txt(state.wifi, 162, F.f2, C.lgrey);
+      txt('--:--', 108, F.big, '#464b5a'); txt(state.wifi || '', 162, F.f2, C.lgrey);
       txt('Set Wi-Fi on the', 192, F.f2, C.dgrey); txt('control page', 210, F.f2, C.dgrey);
-      return;
+      return true;
     }
     const p = et(), h = +p.hour, sec = +p.second;
     scr.shadowColor = '#0096ff'; scr.shadowBlur = 10;
@@ -488,69 +860,281 @@ function drawPreview() {
     scr.fillStyle = '#00afff'; scr.fillRect(50, 155, Math.round(140 * sec / 60), 3);
     txt(h < 12 ? 'AM' : 'PM', 176, F.f2b, '#6e96c8');
     txt(`${p.weekday}, ${MON[+p.month - 1]} ${+p.day}`, 214, F.f2b, '#afb2be');
-  } else if (app === 'TXT Countdown') {
-    txt(state.evn || 'TXT', 28, F.b12, C.purple);
-    if (!/^\d{4}-\d\d-\d\dT\d\d:\d\d/.test(state.evt || '')) {
-      txt('Set concert date', 120, F.f4, C.lgrey); txt('on the control page', 146, F.f2, C.dgrey); return;
-    }
-    if (!state.timeOk) { txt('Waiting for time sync', 120, F.f2, C.dgrey); return; }
-    const left = Math.floor((etToEpoch(state.evt) - Date.now()) / 1000);
-    if (left <= 0) { txt(left > -6 * 3600 ? 'SHOW TIME!' : 'Update the date', 120, F.b18, C.magenta); return; }
-    const d = Math.floor(left / 86400), pad = n => String(n).padStart(2, '0');
-    txt(String(d), 98, F.big, C.white);
-    txt(d === 1 ? 'day' : 'days', 142, F.f4, C.purple);
-    txt(`${pad(Math.floor(left % 86400 / 3600))}:${pad(Math.floor(left % 3600 / 60))}:${pad(left % 60)}`, 180, F.f4, C.cyan);
-    txt(`${state.evt.slice(0, 10)} ${state.evt.slice(11, 16)} ET`, 222, F.f2, C.dgrey);
+  } else if (isCountdown(app)) {
+    drawCountdown(now);
   } else if (app === 'GIF Player') {
-    if (showGif) return;
-    if (state.gif) { txt('GIF on device', 110, F.f4, C.lgrey); txt('Upload it from this browser to preview', 136, F.f2, C.dgrey); }
+    if (showGif) drawGifFrame(now);
+    else if (gifJob) { txt('Copying GIF', 110, F.f4, C.lgrey); txt(`${gifJob.pct}%`, 140, F.f2b, C.dgrey); }
+    else if (state.gif) { txt('GIF on your Cubit', 110, F.f4, C.lgrey); txt('Upload it from this browser to preview', 136, F.f2, C.dgrey); }
     else { txt('No GIF yet', 108, F.f4, C.lgrey); txt('Upload one from the control page', 136, F.f2, C.lgrey); }
   } else {
     txt(app, 120, F.f4, C.lgrey);
   }
+  return true;
 }
-setInterval(drawPreview, 250);
 
-$('bBle').onclick =() => navigator.bluetooth ? connect(bleLink) : setStatus('Web Bluetooth not supported in this browser', 'err');
+// ---- The 3D Cubit (three.js). Model units are millimetres, Z up, as exported. ----
+const FRONT = 1;   // +1: the floating image faces model +Y, the side away from the USB cable. Set -1 to flip it.
+const CUBE = { x: 49.8, y: 41.75, z0: 15.5, s: 25.4 }, SCREEN_MM = 23.4, PLUG_MM = 20;
+const VIEW = -0.62;   // the fixed three-quarter turn while connected (radians around the vertical axis)
+const anim = { theta: VIEW - 1.2, spin: true, plug: 0, screen: 0, frame: 0 };   // frame: 0 = intro framing, 1 = connected
+const ease = { inOut: p => p < .5 ? 4 * p * p * p : 1 - (-2 * p + 2) ** 3 / 2, out: p => 1 - (1 - p) ** 3, sine: p => -(Math.cos(Math.PI * p) - 1) / 2 };
+const tweens = new Map();
+function tween(key, to, ms, fn = ease.inOut) {
+  return new Promise(res => {
+    tweens.get(key)?.res();
+    if (reduceMotion() || ms <= 0) { anim[key] = to; tweens.delete(key); return res(); }
+    tweens.set(key, { from: anim[key], to, t0: performance.now(), ms, fn, res });
+  });
+}
+function stepTweens(now) {
+  for (const [k, t] of tweens) {
+    const p = Math.min(1, Math.max(0, (now - t.t0) / t.ms));
+    anim[k] = t.from + (t.to - t.from) * t.fn(p);
+    if (p >= 1) { tweens.delete(k); t.res(); }
+  }
+}
+let g3 = null, flight = null;
+
+async function init3d() {
+  const stage = $('stage'), canvas = $('gl');
+  try {
+    const THREE = await import('three');
+    const [{ GLTFLoader }, { RoomEnvironment }] = await Promise.all([
+      import('three/addons/loaders/GLTFLoader.js'), import('three/addons/environments/RoomEnvironment.js')]);
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1));
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.NeutralToneMapping;
+    const scene = new THREE.Scene();
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    scene.environmentIntensity = 0.6;
+    scene.add(new THREE.HemisphereLight(0xf2f7ff, 0x5a6470, 1.2));
+    const key = new THREE.DirectionalLight(0xffffff, 2.0); key.position.set(60, 140, 120); scene.add(key);
+    const rim = new THREE.DirectionalLight(0xd8f4ff, 1.6); rim.position.set(-110, 80, -120); scene.add(rim);
+    const camera = new THREE.PerspectiveCamera(26, 1, 5, 3000);
+
+    const turn = new THREE.Group(); scene.add(turn);
+    const dev = new THREE.Group(); turn.add(dev);
+    // Z-up model -> Y-up world, with the front (model +FRONT*Y) facing the camera (+Z), pivoting on the glass cube's axis
+    dev.rotation.set(-Math.PI / 2, 0, FRONT > 0 ? Math.PI : 0);
+    dev.updateMatrix();
+    dev.position.copy(new THREE.Vector3(CUBE.x, CUBE.y, 0).applyMatrix4(dev.matrix)).negate();
+
+    const gltf = await new GLTFLoader().loadAsync('model/cubit.glb');
+    const srgb = (r, g, b) => new THREE.Color().setRGB(r, g, b, THREE.SRGBColorSpace);
+    const mats = {
+      blue: new THREE.MeshStandardMaterial({ color: srgb(0.086, 0.157, 0.412), roughness: .6 }),
+      white: new THREE.MeshStandardMaterial({ color: srgb(0.96, 0.96, 0.95), roughness: .55 }),
+      steel: new THREE.MeshStandardMaterial({ color: srgb(0.70, 0.71, 0.72), metalness: 1, roughness: .3 }),
+    };
+    gltf.scene.traverse(o => {
+      if (!o.isMesh) return;
+      const n = o.material.name || '';
+      o.material = n.includes('Blue') ? mats.blue : n.includes('Steel') ? mats.steel : mats.white;
+    });
+    const usb = new THREE.Group();
+    for (const n of [...gltf.scene.children]) if (/^USB/i.test(n.name)) usb.add(n);
+    dev.add(gltf.scene, usb);
+
+    // Soft contact shadow under the base
+    const sh = document.createElement('canvas'); sh.width = sh.height = 256;
+    const shx = sh.getContext('2d'); shx.filter = 'blur(16px)'; shx.fillStyle = 'rgba(14,24,34,.5)';
+    shx.beginPath(); shx.roundRect(48, 64, 160, 128, 26); shx.fill();
+    const shadow = new THREE.Mesh(new THREE.PlaneGeometry(46.5 * 256 / 160, 33.5 * 256 / 128),
+      new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(sh), transparent: true, depthWrite: false, toneMapped: false }));
+    shadow.position.set(48.25, 41.75, -0.3); dev.add(shadow);
+
+    // The beam-splitter cube: smoked dichroic glass with bright edges
+    const cz = CUBE.z0 + CUBE.s / 2, box = new THREE.BoxGeometry(CUBE.s, CUBE.s, CUBE.s);
+    // Far faces dark so the image has something to glow against; near faces thin, glossy and dichroic
+    const glassMat = (side, color, opacity) => new THREE.MeshPhysicalMaterial({ color, roughness: .05, metalness: 0, transparent: true, opacity,
+      clearcoat: 1, clearcoatRoughness: .04, iridescence: .8, iridescenceIOR: 1.6, iridescenceThicknessRange: [260, 720], envMapIntensity: 1.5, side, depthWrite: false });
+    const gBack = new THREE.Mesh(box, glassMat(THREE.BackSide, 0x0b1218, .72)); gBack.renderOrder = 1;
+    const gFront = new THREE.Mesh(box, glassMat(THREE.FrontSide, 0x22303c, .22)); gFront.renderOrder = 2;
+    const eg = new THREE.EdgesGeometry(box), ep = eg.attributes.position, col = [];
+    const c1 = new THREE.Color('#4fd3e3'), c2 = new THREE.Color('#8b6cf2'), tc = new THREE.Color();
+    for (let i = 0; i < ep.count; i++) { const k = (ep.getX(i) - ep.getY(i) + ep.getZ(i)) / (3 * CUBE.s) + .5; tc.copy(c1).lerp(c2, k); col.push(tc.r, tc.g, tc.b); }
+    eg.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    const edges = new THREE.LineSegments(eg, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: .9, toneMapped: false }));
+    edges.renderOrder = 6;
+    const glass = new THREE.Group(); glass.position.set(CUBE.x, CUBE.y, cz); glass.add(gBack, gFront, edges); dev.add(glass);
+
+    // The floating image: the #scr canvas on an upright plane in the middle of the cube, added so black vanishes
+    const tex = new THREE.CanvasTexture($('scr'));
+    const glowCv = document.createElement('canvas'); glowCv.width = glowCv.height = 96;
+    const glowX = glowCv.getContext('2d'); glowX.filter = 'blur(5px)';
+    const glowTex = new THREE.CanvasTexture(glowCv);
+    for (const t of [tex, glowTex]) { t.colorSpace = THREE.SRGBColorSpace; t.generateMipmaps = false; t.minFilter = THREE.LinearFilter; }
+    // Additive light that leaves the canvas alpha alone, so black adds nothing and the page behind still shows
+    const addMat = map => new THREE.MeshBasicMaterial({ map, transparent: true, opacity: 0, blending: THREE.CustomBlending,
+      blendEquation: THREE.AddEquation, blendSrc: THREE.SrcAlphaFactor, blendDst: THREE.OneFactor,
+      blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor, depthWrite: false, side: THREE.DoubleSide, toneMapped: false });
+    const plane = new THREE.PlaneGeometry(SCREEN_MM, SCREEN_MM);
+    const screen = new THREE.Mesh(plane, addMat(tex)); screen.renderOrder = 5;
+    const glow = new THREE.Mesh(plane, addMat(glowTex)); glow.renderOrder = 4; glow.scale.setScalar(1.06);
+    const sg = new THREE.Group(); sg.position.set(CUBE.x, CUBE.y, cz);
+    sg.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(
+      new THREE.Vector3(-FRONT, 0, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, FRONT, 0)));
+    sg.add(glow, screen); dev.add(sg);
+
+    const lerp = (a, b, t) => a + (b - a) * t;
+    function size(w, h) {
+      renderer.setSize(w, h, false);
+      camera.aspect = w / Math.max(1, h);
+    }
+    function frameCamera() {
+      const f = anim.frame, vf = camera.fov * Math.PI / 360, hf = Math.atan(Math.tan(vf) * camera.aspect);
+      const rh = lerp(68, 40, f), rv = lerp(33, 26, f), el = lerp(.30, .32, f), ty = lerp(17, 20, f);
+      const d = Math.max(rh / Math.tan(hf), rv / Math.tan(vf));
+      camera.position.set(0, ty + d * Math.sin(el), d * Math.cos(el));
+      camera.lookAt(0, ty, 0);
+      camera.updateProjectionMatrix();
+    }
+    new ResizeObserver(() => { if (!flight) size(stage.clientWidth, stage.clientHeight); }).observe(stage);
+    size(stage.clientWidth, stage.clientHeight);
+
+    g3 = {
+      render(now, changed) {
+        if (flight) {   // the canvas flies between the intro and connected positions, drawn live all the way
+          const b = stage.getBoundingClientRect(), p = ease.inOut(Math.min(1, (now - flight.t0) / flight.ms)), a = flight.a;
+          const r = { x: lerp(a.left, b.left, p), y: lerp(a.top, b.top, p), w: lerp(a.width, b.width, p), h: lerp(a.height, b.height, p) };
+          Object.assign(canvas.style, { left: r.x - b.left + 'px', top: r.y - b.top + 'px', width: r.w + 'px', height: r.h + 'px', right: 'auto', bottom: 'auto' });
+          size(Math.round(r.w), Math.round(r.h));
+          if (p >= 1) { flight = null; canvas.classList.remove('flying'); canvas.style.cssText = ''; size(stage.clientWidth, stage.clientHeight); }
+        }
+        turn.rotation.y = anim.theta;
+        usb.position.y = PLUG_MM * anim.plug;
+        screen.material.opacity = anim.screen; glow.material.opacity = .45 * anim.screen;
+        if (changed) { tex.needsUpdate = true; glowX.clearRect(0, 0, 96, 96); glowX.drawImage($('scr'), 8, 8, 80, 80); glowTex.needsUpdate = true; }
+        frameCamera();
+        renderer.render(scene, camera);
+      },
+    };
+    canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); g3 = null; stage.classList.add('flat'); });
+  } catch (e) {
+    console.warn('3D preview unavailable, showing the flat screen instead:', e);
+    g3 = null; stage.classList.add('flat');
+  }
+}
+
+// Move the hero between layouts: measure, switch, then fly the canvas from the old box to the new one.
+function relayout(change) {
+  const canvas = $('gl'), a = $('stage').getBoundingClientRect();
+  change();
+  if (!g3 || reduceMotion() || !a.width) return;
+  canvas.classList.add('flying');
+  flight = { a, t0: performance.now(), ms: 720 };
+}
+
+// One sequence each way. Connect: scoot left, turn to the three-quarter view, plug in, light the screen, reveal the options.
+let seq = 0;
+const wait = ms => new Promise(r => setTimeout(r, reduceMotion() ? 0 : ms));
+async function showLive(on) {
+  const my = ++seq;
+  if (on) {
+    relayout(() => document.body.classList.add('live'));
+    tween('frame', 1, 720);
+    anim.spin = false;
+    const tau = Math.PI * 2, fwd = (((VIEW - anim.theta) % tau) + tau) % tau;
+    const delta = fwd < 3.6 ? fwd : fwd - tau;
+    tween('theta', anim.theta + delta, 700 + Math.abs(delta) * 320, ease.sine);
+    await wait(380); if (my !== seq) return;
+    await tween('plug', 1, 900); if (my !== seq) return;
+    screenDirty = true;
+    tween('screen', 1, 500, ease.out);
+  } else {
+    tween('screen', 0, 250);
+    await tween('plug', 0, 900, ease.inOut); if (my !== seq) return;
+    relayout(() => document.body.classList.remove('live'));
+    tween('frame', 0, 720);
+    await wait(500); if (my !== seq) return;
+    anim.spin = true;
+  }
+}
+
+let last = performance.now();
+function loop(now) {
+  requestAnimationFrame(loop);
+  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  stepTweens(now);
+  if (anim.spin && !reduceMotion() && !tweens.has('theta')) anim.theta += dt * .35;
+  const changed = drawPreview(now);
+  g3?.render(now, changed);
+}
+if (reduceMotion()) anim.theta = VIEW;
+init3d().then(() => requestAnimationFrame(loop));
+
+$('bBle').onclick = () => navigator.bluetooth ? connect(bleLink) : setStatus('Web Bluetooth not supported in this browser', 'err');
 $('bUsb').onclick = () => navigator.serial ? connect(serialLink) : setStatus('Web Serial not supported in this browser', 'err');
 $('bQr').onclick = () => cmd({ cmd: 'qr' });
 $('bWifi').onclick = () => cmd({ cmd: 'wifi', ssid: $('ssid').value, pass: $('pass').value, euser: $('euser').value, eid: $('eid').value })
-  .then(() => setStatus('Wi-Fi saved, connecting…', 'ok'));
-// ---- Auto concert dates (built daily by .github/workflows/concerts.yml from Ticketmaster) ----
+  .then(() => flash(document.querySelector('.saved[data-for="bWifi"]'), 'Saved. Your Cubit is joining the network.'),
+        e => flash(document.querySelector('.saved[data-for="bWifi"]'), 'Not saved: ' + e.message, true));
+$('bRaw').onclick = () => {
+  let obj; try { obj = JSON.parse($('rawCmd').value); } catch { $('rawErr').textContent = 'That isn\'t valid JSON. Example: {"cmd":"info"}'; return; }
+  $('rawErr').textContent = '';
+  cmd(obj).catch(e => { $('rawErr').textContent = 'Not sent: ' + e.message; });
+};
+$('rawCmd').onkeydown = e => { if (e.key === 'Enter') $('bRaw').click(); };
+
+// ---- Countdown: five band buttons, or a date typed in by hand ----
+// Concert dates are built daily by .github/workflows/concerts.yml; only US shows are listed.
 const CONCERTS = 'https://raw.githubusercontent.com/YopalCodes/holocube/main/docs/concerts/';
-let concertIdx = null, wantArt = null;
+let concertIdx = null, artSel = 'txt';
 const artists = () => concertIdx ? Object.values(concertIdx.labels).flat() : [];
+const concertFor = slug => slug ? artists().find(a => a.slug === slug) : null;
 const fmtDay = et => `${MON[+et.slice(5, 7) - 1]} ${+et.slice(8, 10)}, ${et.slice(0, 4)}`;
 function fmtTime(et) { const h = +et.slice(11, 13); return `${h % 12 || 12}:${et.slice(14, 16)} ${h < 12 ? 'AM' : 'PM'}`; }
-function setArt(slug) {
-  wantArt = slug;
-  if (slug && !artists().some(a => a.slug === slug)) return;   // list not loaded yet; fillArtists applies it
-  $('art').value = slug; artChanged();
-}
-function fillArtists() {
-  for (const [label, list] of Object.entries(concertIdx.labels)) {
-    const g = document.createElement('optgroup'); g.label = label;
-    for (const a of list) g.append(new Option(a.next ? `${a.short} · next ${fmtDay(a.next.et)}` : `${a.short} · no dates yet`, a.slug));
-    $('art').append(g);
+function renderBands() {
+  $('bands').innerHTML = '';
+  for (const slug of BAND_ORDER) {
+    const m = bandMeta[slug] || { name: slug.toUpperCase() };
+    const l = document.createElement('label'); l.className = 'band'; l.style.setProperty('--band', m.color || 'var(--act)');
+    const r = document.createElement('input'); r.type = 'radio'; r.name = 'art'; r.value = slug; r.checked = slug === artSel;
+    r.onchange = () => setArt(slug);
+    const img = document.createElement('img'); img.src = `logos/${slug}.png`; img.alt = m.name;
+    img.onerror = () => { const s = document.createElement('span'); s.textContent = m.name; img.replaceWith(s); };
+    l.append(r, img); $('bands').append(l);
   }
-  if (wantArt != null) setArt(wantArt);
 }
+function setArt(slug) {
+  artSel = slug;
+  for (const r of document.querySelectorAll('input[name=art]')) r.checked = r.value === slug;
+  $('manual').classList.toggle('hide', !!slug);
+  $('bManual').setAttribute('aria-pressed', String(!slug));
+  artChanged();
+}
+$('bManual').onclick = () => setArt('');
 function artChanged() {
-  const slug = $('art').value;
-  document.querySelectorAll('.manual').forEach(e => e.classList.toggle('hide', !!slug));
-  if (!slug || !concertIdx) { $('artNext').textContent = ''; return; }
-  const a = artists().find(a => a.slug === slug), n = a && a.next;
-  let msg = n ? `Next show: ${fmtDay(n.et)}, ${fmtTime(n.et)} ET · ${[n.city, n.venue].filter(Boolean).join(', ')}. `
-                + `That's in ${Math.max(0, Math.ceil((etToEpoch(n.et) - Date.now()) / 864e5))} days.`
-              : 'No dates announced yet. The cube checks every hour and switches over by itself.';
-  if (state && state.art === slug && state.artSt) msg += ` Cube: ${state.artSt}.`;
+  const slug = artSel;
+  if (!slug) { $('artNext').textContent = 'Type a title and an Eastern show time below.'; return; }
+  if (!concertIdx) { $('artNext').textContent = ''; return; }
+  const a = concertFor(slug), n = a && a.next, name = bandMeta[slug]?.name || a?.short || slug;
+  let msg;
+  if (n) {
+    const days = Math.max(0, Math.ceil((etToEpoch(n.et) - Date.now()) / 864e5));
+    msg = `${name} plays ${[n.venue, n.city].filter(Boolean).join(', ')} on ${fmtDay(n.et)} at ${fmtTime(n.et)} Eastern, `
+        + (days === 0 ? 'today.' : days === 1 ? 'tomorrow.' : `${days} days away.`);
+  } else msg = `No US shows are listed yet for ${name}. Your Cubit checks every hour and switches over by itself.`;
+  if (state && state.art === slug && state.artSt) msg += ` Cubit: ${state.artSt}.`;
   if (concertIdx.source === 'manual only') msg += ' (No concert source is connected yet, so only hand-added dates appear.)';
   $('artNext').textContent = msg;
 }
-$('art').onchange = artChanged;
+fetch('logos/logos.json').then(r => r.json()).then(m => { bandMeta = m; }).catch(() => {})
+  .finally(() => { renderBands(); artChanged(); screenDirty = true; });
 fetch(CONCERTS + 'index.json', { cache: 'no-store' }).then(r => r.json())
-  .then(ix => { concertIdx = ix; fillArtists(); })
-  .catch(() => { $('artNext').textContent = "Couldn't load the concert list."; });
+  .then(ix => {
+    concertIdx = ix; artChanged();
+    const withShows = artists().filter(a => a.next).length;
+    $('concertInfo').textContent = `Source: ${ix.source}. Last updated ${new Date(ix.updated.replace('Z', ':00Z')).toLocaleString()}. `
+      + `${withShows} of ${artists().length} tracked artists have upcoming US shows. The list is rebuilt daily by the Concert dates workflow in GitHub Actions.`;
+  })
+  .catch(() => {
+    $('artNext').textContent = "Couldn't load the concert list. Check your internet connection and reload the page.";
+    $('concertInfo').textContent = "Couldn't load docs/concerts/index.json.";
+  });
 
 const shift = (x, y) => cmd({ cmd: 'shift', x, y });
 const nudge = (dx, dy) => shift((state?.sx ?? 0) + dx, (state?.sy ?? 0) + dy);
@@ -559,8 +1143,9 @@ $('nUp').onclick = () => nudge(0, -1);   $('nDown').onclick = () => nudge(0, 1);
 $('bAlign').onclick = () => cmd({ cmd: 'align' });
 $('bShift').onclick = () => shift(parseInt($('sx').value) || 0, parseInt($('sy').value) || 0);
 
-$('bCfg').onclick = () => cmd({ cmd: 'cfg', art: $('art').value, ...($('art').value ? {} : { evn: $('evn').value, evt: $('evt').value }), url: $('url').value,
-  lat: parseFloat($('lat').value), lon: parseFloat($('lon').value), rot: parseInt($('rot').value), fx: parseInt($('fx').value) });
+$('bCfg').onclick = () => saveCfg('bCfg');
+$('bClock').onclick = () => saveCfg('bClock');
+$('bDisp').onclick = () => saveCfg('bDisp');
 </script>
 </body>
 </html>

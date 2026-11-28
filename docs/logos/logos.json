@@ -1,0 +1,32 @@
+{
+ "txt": {
+  "name": "TXT",
+  "color": "#7ec8f8",
+  "w": 480,
+  "h": 212
+ },
+ "enhypen": {
+  "name": "ENHYPEN",
+  "color": "#ff785c",
+  "w": 419,
+  "h": 270
+ },
+ "straykids": {
+  "name": "Stray Kids",
+  "color": "#f5f5fa",
+  "w": 480,
+  "h": 246
+ },
+ "wavetoearth": {
+  "name": "wave to earth",
+  "color": "#96dcc8",
+  "w": 480,
+  "h": 164
+ },
+ "bts": {
+  "name": "BTS",
+  "color": "#b48cff",
+  "w": 127,
+  "h": 270
+ }
+}
