@@ -133,12 +133,9 @@ def bandsintown_events(artists):
     With APIFY_TASK set, runs that saved Apify task with its own input; otherwise calls the
     solidcode/bandsintown-scraper actor with the opted-in artists."""
     auth = {**UA, "Authorization": f"Bearer {APIFY}", "Content-Type": "application/json"}
-    if APIFY_TASK:
-        # A body sent to a task run overrides those fields of the task's saved input, so the
-        # artist list always comes from artists.json and the task keeps its other settings.
+    if APIFY_TASK:   # the task's saved input decides which artists are scraped
         base = f"https://api.apify.com/v2/actor-tasks/{APIFY_TASK}"
-        body = json.dumps({"artists": [a["name"] for a in artists]})
-        req = urllib.request.Request(base + "/run-sync-get-dataset-items?timeout=280", data=body.encode(), method="POST", headers=auth)
+        req = urllib.request.Request(base + "/run-sync-get-dataset-items?timeout=280", data=b"{}", method="POST", headers=auth)
     else:
         base = APIFY_ACTOR.rsplit("/", 1)[0]
         body = json.dumps({"artists": [a["name"] for a in artists], "queryType": "events",
@@ -236,7 +233,8 @@ def main():
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
 
     bit, bit_failed = {}, False
-    bit_artists = [a for artists in labels.values() for a in artists if a.get("apify")]
+    # With a saved task, every tracked artist the task returns is used; otherwise only "apify": true ones.
+    bit_artists = [a for artists in labels.values() for a in artists if APIFY_TASK or a.get("apify")]
     if APIFY and bit_artists:
         try:
             bit = bandsintown_events(bit_artists)
@@ -254,7 +252,7 @@ def main():
         for a in artists:
             events = list(bit.get(a["slug"], []))
             old = OUT / f"{a['slug']}.json"
-            if bit_failed and a.get("apify") and old.exists():
+            if bit_failed and a in bit_artists and old.exists():
                 events = [e for e in json.loads(old.read_text(encoding="utf-8")).get("events", []) if e.get("et")]
             if KEY:
                 try:
