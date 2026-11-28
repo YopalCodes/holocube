@@ -132,16 +132,18 @@ def bandsintown_events(artists):
 
     With APIFY_TASK set, runs that saved Apify task with its own input; otherwise calls the
     solidcode/bandsintown-scraper actor with the opted-in artists."""
-    auth = {**UA, "Authorization": f"Bearer {APIFY}"}
+    auth = {**UA, "Authorization": f"Bearer {APIFY}", "Content-Type": "application/json"}
     if APIFY_TASK:
+        # A body sent to a task run overrides those fields of the task's saved input, so the
+        # artist list always comes from artists.json and the task keeps its other settings.
         base = f"https://api.apify.com/v2/actor-tasks/{APIFY_TASK}"
-        req = urllib.request.Request(base + "/run-sync-get-dataset-items?timeout=280", data=b"", method="POST", headers=auth)
+        body = json.dumps({"artists": [a["name"] for a in artists]})
+        req = urllib.request.Request(base + "/run-sync-get-dataset-items?timeout=280", data=body.encode(), method="POST", headers=auth)
     else:
         base = APIFY_ACTOR.rsplit("/", 1)[0]
         body = json.dumps({"artists": [a["name"] for a in artists], "queryType": "events",
                            "dateFilter": "upcoming", "includeEventDetails": False, "maxResults": 60 * len(artists)})
-        req = urllib.request.Request(APIFY_ACTOR + "?timeout=280", data=body.encode(), method="POST",
-                                     headers={**auth, "Content-Type": "application/json"})
+        req = urllib.request.Request(APIFY_ACTOR + "?timeout=280", data=body.encode(), method="POST", headers=auth)
     with urllib.request.urlopen(req, timeout=300) as r:
         rows = json.load(r)
 
