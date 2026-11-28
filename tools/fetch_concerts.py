@@ -117,18 +117,33 @@ def city_tz(city, country):
 
 def bandsintown_events(artists):
     """One Apify run for all opted-in artists. Returns {artist slug: [events]}; raises on failure."""
-    by_name = {norm(a["name"]): a["slug"] for a in artists}
-    body = json.dumps({"artists": [a["name"] for a in artists], "queryType": "events",
+    body =json.dumps({"artists": [a["name"] for a in artists], "queryType": "events",
                        "dateFilter": "upcoming", "includeEventDetails": False, "maxResults": 60 * len(artists)})
     req = urllib.request.Request(APIFY_ACTOR + "?timeout=280", data=body.encode(), method="POST",
                                  headers={**UA, "Content-Type": "application/json", "Authorization": f"Bearer {APIFY}"})
     with urllib.request.urlopen(req, timeout=300) as r:
         rows = json.load(r)
+    names = {}
+    for row in rows:
+        n = row.get("artistName") or row.get("name") or "?"
+        names[n] = names.get(n, 0) + 1
+    print(f"  Bandsintown returned {len(rows)} row(s): " + ", ".join(f"{n} x{c}" for n, c in names.items()))
+
+    def match(name):   # Bandsintown spellings vary ("TXT", "TOMORROW X TOGETHER (투모로우바이투게더)")
+        n = norm(name or "")
+        if not n:
+            return None
+        for a in artists:
+            keys = {norm(a["name"]), norm(a["short"])}
+            if n in keys or any(k and (k in n or n in k) and min(len(k), len(n)) >= 3 for k in keys):
+                return a["slug"]
+        return None
+
     out = {a["slug"]: [] for a in artists}
     for row in rows:
-        slug = by_name.get(norm(row.get("artistName") or ""))
+        slug = match(row.get("artistName"))
         local = row.get("datetime")
-        if row.get("recordType") != "event" or not slug or not local:
+        if row.get("recordType") not in (None, "event") or not slug or not local:
             continue
         city, country = row.get("venueCity") or "", row.get("venueCountry") or ""
         tz = city_tz(city, country)
@@ -173,6 +188,9 @@ def main():
     if APIFY and bit_artists:
         try:
             bit = bandsintown_events(bit_artists)
+        except urllib.error.HTTPError as e:
+            bit_failed = True
+            print(f"Bandsintown (Apify) failed: HTTP {e.code} {e.read()[:500]!r}", file=sys.stderr)
         except Exception as e:   # keep yesterday's files for these artists rather than wiping them
             bit_failed = True
             print(f"Bandsintown (Apify) failed: {e}", file=sys.stderr)
