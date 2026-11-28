@@ -30,6 +30,12 @@ OUT = ROOT / "docs" / "concerts"
 KEY = os.environ.get("TM_API_KEY", "").strip()
 APIFY = os.environ.get("APIFY_TOKEN", "").strip()
 APIFY_TASK = os.environ.get("APIFY_TASK", "").strip()   # a saved Apify task to run instead of the actor below
+# Only keep shows in these countries (comma-separated, e.g. "United States"); empty = everywhere.
+# Applies to Bandsintown/Ticketmaster results; concerts/manual.json entries are always kept.
+_ALIASES = {"unitedstates": {"unitedstates", "unitedstatesofamerica", "us", "usa"}}
+COUNTRIES = set().union(*([_ALIASES.get(n, {n}) for n in
+                           (re.sub(r"[^a-z0-9&]", "", c.casefold()) for c in os.environ.get("CONCERT_COUNTRIES", "").split(","))
+                           if n] or [set()]))
 APIFY_ACTOR = "https://api.apify.com/v2/acts/solidcode~bandsintown-scraper/run-sync-get-dataset-items"
 API = "https://app.ticketmaster.com/discovery/v2/"
 UA = {"User-Agent": "holocube-concerts/1.0"}
@@ -261,6 +267,8 @@ def main():
                     print(f"  {a['short']}: {e}", file=sys.stderr)
                     if old.exists() and not events:
                         events = json.loads(old.read_text(encoding="utf-8")).get("events", [])
+            if COUNTRIES:
+                events = [e for e in events if norm(e.get("country", "")) in COUNTRIES]
             events += [dict(e, url=e.get("url", "")) for e in manual.get(a["slug"], [])]
             # Same show from two sources: same city within 3 hours (sources round start times differently).
             uniq = []
